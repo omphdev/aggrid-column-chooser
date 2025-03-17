@@ -1,5 +1,5 @@
 // App.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { GridReadyEvent } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
@@ -9,6 +9,7 @@ import { TreeView } from './TreeViews';
 import { useAllPossibleColumns, useMockData, useMockColumnDefinitions } from './mockData';
 import { useColumnManagement } from './hooks/useColumnManagement';
 import { ColumnDefinition } from './types';
+import './DragDropStyles.css';
 
 // Main App Component
 const ColumnChooserDemo: React.FC = () => {
@@ -49,27 +50,40 @@ const ColumnChooserDemo: React.FC = () => {
     handleDragOver,
     handleDropToSelected,
     handleDropToAvailable,
-    onGridReady
+    handleSelectedItemReorder,
+    onGridReady,
+    setIsFlatView
   } = useColumnManagement({
     allPossibleColumns,
     mockData,
-    onSelectedColumnsChange: handleSelectedColumnsChange
+    onSelectedColumnsChange: handleSelectedColumnsChange,
+    flatViewSelected: selectedColumnsFlat
   });
+
+  // Update flat view state in the column management hook when it changes
+  useEffect(() => {
+    setIsFlatView(selectedColumnsFlat);
+  }, [selectedColumnsFlat, setIsFlatView]);
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '10px', borderBottom: '1px solid #ddd' }}>
         <h2>Custom Column Chooser Demo</h2>
+        <p>
+          Drag columns between panels to add/remove them. 
+          You can drop a column at a specific position to control the order.
+          With flat view enabled, you can drag columns freely within the selected columns panel.
+        </p>
       </div>
       
       {/* Column Chooser Section */}
       <div style={{ display: 'flex', padding: '10px', gap: '10px', height: '300px' }}>
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <h3>Column Chooser</h3>
             
             <div>
-              <label>
+              <label className="flat-view-toggle">
                 <input
                   type="checkbox"
                   checked={selectedColumnsFlat}
@@ -78,15 +92,14 @@ const ColumnChooserDemo: React.FC = () => {
                 />
                 Flat View for Selected Columns
               </label>
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                With flat view enabled, you can reorder columns regardless of their groups
+              </div>
             </div>
           </div>
-          <div style={{ 
-            display: 'flex', 
-            height: '250px', 
-            gap: '10px'
-          }}>
+          <div className="column-chooser-container">
             {/* Available Columns */}
-            <div style={{ flex: 1, height: '100%' }}>
+            <div className="column-chooser-panel">
               <TreeView 
                 items={availableColumns}
                 onDragStart={handleAvailableItemDragStart}
@@ -102,7 +115,7 @@ const ColumnChooserDemo: React.FC = () => {
             </div>
             
             {/* Selected Columns */}
-            <div style={{ flex: 1, height: '100%' }}>
+            <div className="column-chooser-panel">
               <TreeView 
                 items={selectedColumns}
                 onDragStart={handleSelectedItemDragStart}
@@ -114,7 +127,9 @@ const ColumnChooserDemo: React.FC = () => {
                 onSelectAll={selectAllSelected}
                 onClearSelection={clearSelectionSelected}
                 selectedCount={selectedSelectedCount}
-                flatView={selectedColumnsFlat} // Use state variable for toggle
+                flatView={selectedColumnsFlat}
+                showGroupLabels={true}
+                onItemReorder={handleSelectedItemReorder}
               />
             </div>
           </div>
@@ -124,6 +139,7 @@ const ColumnChooserDemo: React.FC = () => {
       {/* Main Grid */}
       <div className="ag-theme-alpine" style={{ flex: 1, width: '100%' }}>
         <h3>Main Grid</h3>
+        <p>The grid below displays the columns you've selected in the order you arranged them.</p>
         <AgGridReact
           rowData={rowData}
           columnDefs={mainGridColumns}

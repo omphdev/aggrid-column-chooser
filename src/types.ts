@@ -31,6 +31,8 @@ export interface TreeItemProps {
   toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
   depth: number;
   index: number;
+  onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void;
+  onDragLeave?: () => void;
 }
 
 export interface TreeViewProps {
@@ -44,5 +46,15 @@ export interface TreeViewProps {
   onSelectAll: () => void;
   onClearSelection: () => void;
   selectedCount: number;
-  flatView?: boolean; // New prop to toggle between flat and tree views
+  flatView?: boolean; // Toggle between flat and tree views
+  showGroupLabels?: boolean; // Show group labels in flat view
+  onItemReorder?: (e: React.DragEvent) => void; // Callback for handling reordering within the same panel
+}
+
+// Extended DragEvent to include drop position information
+export interface PositionedDragEvent extends React.DragEvent {
+  dropPosition?: {
+    targetId?: string;
+    insertBefore: boolean;
+  }
 }

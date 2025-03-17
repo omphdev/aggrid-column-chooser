@@ -1,11 +1,14 @@
 // hooks/useColumnManagement.ts
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { ColumnItem, ColumnDefinition } from '../types';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { ColumnItem, ColumnDefinition, PositionedDragEvent } from '../types';
 import { ColDef, GridApi } from 'ag-grid-community';
 import { 
   toggleExpand,
   countSelectedItems,
-  convertToAgGridColumns
+  convertToAgGridColumns,
+  findItemInTree,
+  removeItemFromTree,
+  deepCloneColumnItem
 } from '../utils/treeUtils';
 import {
   toggleSelect,
@@ -15,11 +18,14 @@ import {
 import {
   handleDragStartForAvailable,
   handleDragStartForSelected,
-  processDragDrop
+  processDragDrop,
+  insertItemIntoTreeAtIndex,
+  insertItemIntoFlatList
 } from '../utils/dragDropUtils';
 import { 
   convertToFlatColumns,
-  getLeafNodeIds 
+  getLeafNodeIds,
+  flattenTree
 } from '../utils/columnConverter';
 
 // Export the props interface
@@ -27,12 +33,14 @@ export interface ColumnManagementProps {
   allPossibleColumns: ColumnItem[];
   mockData: any[];
   onSelectedColumnsChange?: (columns: ColumnDefinition[]) => void;
+  flatViewSelected?: boolean;
 }
 
 export const useColumnManagement = ({ 
   allPossibleColumns,
   mockData,
-  onSelectedColumnsChange
+  onSelectedColumnsChange,
+  flatViewSelected = false
 }: ColumnManagementProps) => {
   // State for the main grid columns and data
   const [rowData, setRowData] = useState<any[]>([]);
@@ -48,6 +56,14 @@ export const useColumnManagement = ({
   // State to track last selected item (for shift-click range selection)
   const [lastSelectedAvailableId, setLastSelectedAvailableId] = useState<string | null>(null);
   const [lastSelectedSelectedId, setLastSelectedSelectedId] = useState<string | null>(null);
+
+  // Track the flat view state internally too
+  const [isFlatView, setIsFlatView] = useState(flatViewSelected);
+  
+  // Update the internal flat view state when the prop changes
+  useEffect(() => {
+    setIsFlatView(flatViewSelected);
+  }, [flatViewSelected]);
 
   // Memoized values
   const selectedAvailableCount = useMemo(() => 
@@ -149,45 +165,212 @@ export const useColumnManagement = ({
     e.preventDefault();
   }, []);
 
+  // Enhanced drop handlers for positioned drops
   const handleDropToSelected = useCallback((e: React.DragEvent) => {
-    const clearSelections = () => {
-      clearSelectionAvailable();
-      clearSelectionSelected();
-    };
+    e.preventDefault();
+    const positionedEvent = e as PositionedDragEvent;
     
-    const { newAvailable, newSelected } = processDragDrop(
-      e, 
-      'available', 
-      availableColumns, 
-      selectedColumns, 
-      allPossibleColumns,
-      clearSelections
-    );
-    
-    setAvailableColumns(newAvailable);
-    setSelectedColumns(newSelected);
-    updateMainGridColumns(newSelected);
-  }, [availableColumns, selectedColumns, allPossibleColumns, clearSelectionAvailable, clearSelectionSelected, updateMainGridColumns]);
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
+        ids: string[], 
+        source: string 
+      };
+      
+      if (data.source === 'available' && data.ids && data.ids.length > 0) {
+        // Create new arrays to avoid mutation
+        let newAvailable = [...availableColumns];
+        let newSelected = [...selectedColumns];
+        
+        // Get drop position information
+        const targetId = positionedEvent.dropPosition?.targetId;
+        const insertBefore = positionedEvent.dropPosition?.insertBefore ?? true;
+        
+        // Process each selected item
+        for (const draggedItemId of data.ids) {
+          const draggedItem = findItemInTree(availableColumns, draggedItemId);
+          
+          if (draggedItem) {
+            // Clone the dragged item
+            const clonedItem = deepCloneColumnItem(draggedItem);
+            
+            // Remove from available
+            newAvailable = removeItemFromTree(newAvailable, draggedItemId);
+            
+            // Add to selected at the specific position
+            if (isFlatView) {
+              newSelected = insertItemIntoFlatList(
+                newSelected, 
+                clonedItem, 
+                allPossibleColumns,
+                targetId, 
+                insertBefore
+              );
+            } else {
+              newSelected = insertItemIntoTreeAtIndex(
+                newSelected, 
+                clonedItem, 
+                allPossibleColumns,
+                targetId,
+                insertBefore
+              );
+            }
+          }
+        }
+        
+        // Update states
+        setAvailableColumns(newAvailable);
+        setSelectedColumns(newSelected);
+        
+        // Update main grid
+        updateMainGridColumns(newSelected);
+        
+        // Clear selections after drag
+        clearSelectionAvailable();
+        clearSelectionSelected();
+      }
+    } catch (err) {
+      console.error('Error processing drag data:', err);
+    }
+  }, [availableColumns, selectedColumns, allPossibleColumns, clearSelectionAvailable, clearSelectionSelected, updateMainGridColumns, isFlatView]);
 
   const handleDropToAvailable = useCallback((e: React.DragEvent) => {
-    const clearSelections = () => {
-      clearSelectionAvailable();
-      clearSelectionSelected();
-    };
+    e.preventDefault();
+    const positionedEvent = e as PositionedDragEvent;
     
-    const { newAvailable, newSelected } = processDragDrop(
-      e, 
-      'selected', 
-      availableColumns, 
-      selectedColumns, 
-      allPossibleColumns,
-      clearSelections
-    );
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
+        ids: string[], 
+        source: string 
+      };
+      
+      if (data.source === 'selected' && data.ids && data.ids.length > 0) {
+        // Create new arrays to avoid mutation
+        let newAvailable = [...availableColumns];
+        let newSelected = [...selectedColumns];
+        
+        // Get drop position information
+        const targetId = positionedEvent.dropPosition?.targetId;
+        const insertBefore = positionedEvent.dropPosition?.insertBefore ?? true;
+        
+        // Process each selected item
+        for (const draggedItemId of data.ids) {
+          const draggedItem = findItemInTree(selectedColumns, draggedItemId);
+          
+          if (draggedItem) {
+            // Clone the dragged item
+            const clonedItem = deepCloneColumnItem(draggedItem);
+            
+            // Remove from selected
+            newSelected = removeItemFromTree(newSelected, draggedItemId);
+            
+            // Add to available at the specific position
+            // We don't use flat view for available columns normally, but the logic is here
+            if (false) { // Could make this configurable if needed
+              newAvailable = insertItemIntoFlatList(
+                newAvailable, 
+                clonedItem, 
+                allPossibleColumns,
+                targetId, 
+                insertBefore
+              );
+            } else {
+              newAvailable = insertItemIntoTreeAtIndex(
+                newAvailable, 
+                clonedItem, 
+                allPossibleColumns,
+                targetId,
+                insertBefore
+              );
+            }
+          }
+        }
+        
+        // Update states
+        setAvailableColumns(newAvailable);
+        setSelectedColumns(newSelected);
+        
+        // Update main grid
+        updateMainGridColumns(newSelected);
+        
+        // Clear selections after drag
+        clearSelectionAvailable();
+        clearSelectionSelected();
+      }
+    } catch (err) {
+      console.error('Error processing drag data:', err);
+    }
+  }, [availableColumns, selectedColumns, allPossibleColumns, clearSelectionAvailable, clearSelectionSelected, updateMainGridColumns, isFlatView]);
+
+  // Handler for reordering within the selected columns panel
+  const handleSelectedItemReorder = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const positionedEvent = e as PositionedDragEvent;
     
-    setAvailableColumns(newAvailable);
-    setSelectedColumns(newSelected);
-    updateMainGridColumns(newSelected);
-  }, [availableColumns, selectedColumns, allPossibleColumns, clearSelectionAvailable, clearSelectionSelected, updateMainGridColumns]);
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
+        ids: string[], 
+        source: string 
+      };
+      
+      if (data.source === 'selected' && data.ids && data.ids.length > 0) {
+        // Get drop position information
+        const targetId = positionedEvent.dropPosition?.targetId;
+        const insertBefore = positionedEvent.dropPosition?.insertBefore ?? true;
+        
+        // Don't do anything if dropping onto itself
+        if (data.ids.length === 1 && data.ids[0] === targetId) {
+          return;
+        }
+        
+        // Create a new array to avoid mutation
+        let newSelected = [...selectedColumns];
+        
+        // Process each selected item
+        for (const draggedItemId of data.ids) {
+          // First remove the item
+          const draggedItem = findItemInTree(newSelected, draggedItemId);
+          
+          if (draggedItem) {
+            // Clone the dragged item
+            const clonedItem = deepCloneColumnItem(draggedItem);
+            
+            // Remove from selected
+            newSelected = removeItemFromTree(newSelected, draggedItemId);
+            
+            // Add back at the new position
+            if (isFlatView) {
+              newSelected = insertItemIntoFlatList(
+                newSelected, 
+                clonedItem, 
+                allPossibleColumns,
+                targetId, 
+                insertBefore
+              );
+            } else {
+              newSelected = insertItemIntoTreeAtIndex(
+                newSelected, 
+                clonedItem, 
+                allPossibleColumns,
+                targetId,
+                insertBefore
+              );
+            }
+          }
+        }
+        
+        // Update state
+        setSelectedColumns(newSelected);
+        
+        // Update main grid
+        updateMainGridColumns(newSelected);
+        
+        // Clear selections after drag
+        clearSelectionSelected();
+      }
+    } catch (err) {
+      console.error('Error processing reorder data:', err);
+    }
+  }, [selectedColumns, allPossibleColumns, clearSelectionSelected, updateMainGridColumns, isFlatView]);
 
   // Initialize state
   useEffect(() => {
@@ -219,6 +402,7 @@ export const useColumnManagement = ({
     defaultColDef,
     selectedAvailableCount,
     selectedSelectedCount,
+    isFlatView,
     
     // Event handlers
     toggleExpandAvailable,
@@ -234,6 +418,8 @@ export const useColumnManagement = ({
     handleDragOver,
     handleDropToSelected,
     handleDropToAvailable,
-    onGridReady
+    handleSelectedItemReorder,
+    onGridReady,
+    setIsFlatView
   };
 };

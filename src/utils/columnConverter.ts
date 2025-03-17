@@ -137,3 +137,27 @@ export const getLeafNodeIds = (items: ColumnItem[]): string[] => {
   items.forEach(findLeafNodes);
   return leafIds;
 };
+
+/**
+ * Flattens a tree structure into a single list of leaf nodes
+ * @param items Tree structure of columns
+ * @returns Flattened list of leaf nodes
+ */
+export const flattenTree = (items: ColumnItem[]): ColumnItem[] => {
+  let result: ColumnItem[] = [];
+  
+  const processItem = (item: ColumnItem) => {
+    // Only add leaf nodes (items with a field property)
+    if (item.field && (!item.children || item.children.length === 0)) {
+      result.push(item);
+    }
+    
+    // Process children if any
+    if (item.children && item.children.length > 0) {
+    item.children.forEach(processItem);
+    }
+  };
+  
+  items.forEach(processItem);
+  return result;
+};
