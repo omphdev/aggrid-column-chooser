@@ -1,4 +1,4 @@
-// TreeViews.tsx with fixed drop indicator cleanup
+// TreeViews.tsx with fixed drop indicator handling
 import React, { useState, useRef, useEffect } from "react";
 import { ColumnItem, TreeItemProps, TreeViewProps } from "./types";
 import { flattenTree } from "./utils/columnConverter";
@@ -47,8 +47,7 @@ export const TreeItem: React.FC<TreeItemProps> = ({
     }
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDragLeave = () => {
     if (onDragLeave) {
       onDragLeave();
     }
@@ -168,8 +167,7 @@ const FlatItem: React.FC<{
     }
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDragLeave = () => {
     if (onDragLeave) {
       onDragLeave();
     }
@@ -273,6 +271,24 @@ const renderFlatItems = (
   ));
 };
 
+// Create a global store to track which panel is currently being dragged over
+// This helps ensure only one panel shows a drop indicator at a time
+const DragStateManager = {
+  activeDropTargetId: null as string | null,
+  
+  setActiveDropTarget(id: string | null) {
+    this.activeDropTargetId = id;
+  },
+  
+  getActiveDropTarget() {
+    return this.activeDropTargetId;
+  },
+  
+  isActive(id: string) {
+    return this.activeDropTargetId === id;
+  }
+};
+
 export const TreeView: React.FC<TreeViewProps> = ({ 
   items, 
   onDragStart, 
@@ -289,19 +305,27 @@ export const TreeView: React.FC<TreeViewProps> = ({
   onItemReorder, // New prop for handling reordering
 }) => {
   const treeRef = useRef<HTMLDivElement>(null);
+  const componentId = useRef(`tree-view-${Math.random().toString(36).substring(2, 9)}`).current;
+  
   const [dropIndicator, setDropIndicator] = useState<{
     visible: boolean;
     top: number;
     itemId?: string;
     insertBefore: boolean;
+    itemName?: string;
   }>({
     visible: false,
     top: 0,
-    insertBefore: true
+    insertBefore: true,
+    itemName: undefined
   });
 
   // Cleanup function for drop indicators (can be called from multiple places)
   const cleanupDropIndicators = () => {
+    if (DragStateManager.isActive(componentId)) {
+      DragStateManager.setActiveDropTarget(null);
+    }
+    
     setDropIndicator({
       visible: false,
       top: 0,
@@ -309,35 +333,87 @@ export const TreeView: React.FC<TreeViewProps> = ({
     });
   };
 
+  // Check if we should be allowed to show drop indicators
+  const canShowDropIndicator = () => {
+    // Only show indicator if we're the active target or no target is set yet
+    return DragStateManager.getActiveDropTarget() === null || 
+           DragStateManager.isActive(componentId);
+  };
+
   // Handle showing drop indicators
   const handleItemDragOver = (e: React.DragEvent, element: HTMLElement | null, itemId: string) => {
     if (!element) return;
     
-    // Calculate if we should insert before or after based on mouse position
-    const rect = element.getBoundingClientRect();
-    const mouseY = e.clientY;
-    const threshold = rect.top + (rect.height / 2);
-    const insertBefore = mouseY < threshold;
+    // Set this component as the active drop target
+    DragStateManager.setActiveDropTarget(componentId);
     
-    // Calculate position for the drop indicator
-    const offsetTop = insertBefore ? rect.top : rect.bottom;
-    const containerRect = treeRef.current?.getBoundingClientRect();
-    const top = containerRect ? offsetTop - containerRect.top : offsetTop;
+    // Extract the source panel from dataTransfer
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
+        ids: string[], 
+        source: string,
+        itemName?: string
+      };
+      
+      // If we're dragging within the same panel and not a reorder operation, don't show indicators
+      if ((title === "Available Columns" && data.source === "available") ||
+          (title === "Selected Columns" && data.source === "selected")) {
+        // Only show indicator if we support reordering or if this is from a different panel
+        if (!onItemReorder) {
+          cleanupDropIndicators();
+          return;
+        }
+      }
+      
+      // Calculate if we should insert before or after based on mouse position
+      const rect = element.getBoundingClientRect();
+      const mouseY = e.clientY;
+      const threshold = rect.top + (rect.height / 2);
+      const insertBefore = mouseY < threshold;
+      
+      // Calculate position for the drop indicator
+      const offsetTop = insertBefore ? rect.top : rect.bottom;
+      const containerRect = treeRef.current?.getBoundingClientRect();
+      const top = containerRect ? offsetTop - containerRect.top : offsetTop;
 
-    setDropIndicator({
-      visible: true,
-      top,
-      itemId,
-      insertBefore
-    });
+      setDropIndicator({
+        visible: true,
+        top,
+        itemId,
+        insertBefore,
+        itemName: data.itemName || "Dragged Item"
+      });
+    } catch (err) {
+      // If we can't parse the data, still show a generic indicator
+      // Calculate if we should insert before or after based on mouse position
+      const rect = element.getBoundingClientRect();
+      const mouseY = e.clientY;
+      const threshold = rect.top + (rect.height / 2);
+      const insertBefore = mouseY < threshold;
+      
+      // Calculate position for the drop indicator
+      const offsetTop = insertBefore ? rect.top : rect.bottom;
+      const containerRect = treeRef.current?.getBoundingClientRect();
+      const top = containerRect ? offsetTop - containerRect.top : offsetTop;
+
+      setDropIndicator({
+        visible: true,
+        top,
+        itemId,
+        insertBefore,
+        itemName: "Dragged Item"
+      });
+    }
   };
 
   const handleDragLeave = () => {
     // We need a small delay to avoid flickering when moving between items
+    // Check if we're still over the container before hiding
     setTimeout(() => {
-      // Check if we're still over any item before hiding
-      const dragElement = document.querySelector('[data-dragging="true"]');
-      if (!dragElement) {
+      // Check if the mouse is still over any part of our component
+      if (!treeRef.current?.contains(document.activeElement) && 
+          DragStateManager.isActive(componentId)) {
+        DragStateManager.setActiveDropTarget(null);
         cleanupDropIndicators();
       }
     }, 50);
@@ -346,22 +422,76 @@ export const TreeView: React.FC<TreeViewProps> = ({
   const handleContainerDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     
+    // Set this component as the active drop target
+    DragStateManager.setActiveDropTarget(componentId);
+    
     // If we're dragging over the container but not over any item,
     // show indicator at the bottom to allow appending
-    if (!dropIndicator.visible && items.length > 0) {
+    if (canShowDropIndicator() && items.length > 0 && !dropIndicator.visible) {
       const containerRect = treeRef.current?.getBoundingClientRect();
       if (containerRect) {
-        setDropIndicator({
-          visible: true,
-          top: containerRect.height - 2,
-          insertBefore: false
-        });
+        try {
+          const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
+            ids: string[], 
+            source: string,
+            itemName?: string 
+          };
+          
+          setDropIndicator({
+            visible: true,
+            top: containerRect.height - 30, // Position a bit higher to show the silhouette
+            insertBefore: false,
+            itemName: data.itemName || "Dragged Item"
+          });
+        } catch (err) {
+          setDropIndicator({
+            visible: true,
+            top: containerRect.height - 30,
+            insertBefore: false,
+            itemName: "Dragged Item"
+          });
+        }
       }
     }
     
     // Call the parent onDragOver if provided
     if (onDragOver) {
       onDragOver(e);
+    }
+  };
+
+  const handleContainerDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    
+    // Set this as the active drop target when entering
+    DragStateManager.setActiveDropTarget(componentId);
+    
+    // If the container is empty, show a drop indicator
+    if (items.length === 0) {
+      const containerRect = treeRef.current?.getBoundingClientRect();
+      if (containerRect) {
+        try {
+          const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
+            ids: string[], 
+            source: string,
+            itemName?: string 
+          };
+          
+          setDropIndicator({
+            visible: true,
+            top: containerRect.height / 2,
+            insertBefore: false,
+            itemName: data.itemName || "Dragged Item"
+          });
+        } catch (err) {
+          setDropIndicator({
+            visible: true,
+            top: containerRect.height / 2,
+            insertBefore: false,
+            itemName: "Dragged Item"
+          });
+        }
+      }
     }
   };
 
@@ -383,8 +513,13 @@ export const TreeView: React.FC<TreeViewProps> = ({
     // Cleanup
     return () => {
       document.removeEventListener('dragend', handleGlobalDragEnd);
+      
+      // When component unmounts, clear active target if it's this component
+      if (DragStateManager.isActive(componentId)) {
+        DragStateManager.setActiveDropTarget(null);
+      }
     };
-  }, []);
+  }, [componentId]);
 
   const handleTreeDrop = (e: React.DragEvent) => {
     // Try to parse the data transfer to detect if it's a reordering operation
@@ -439,6 +574,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
       className="tree-view" 
       onDrop={handleTreeDrop} 
       onDragOver={handleContainerDragOver}
+      onDragEnter={handleContainerDragEnter}
       onDragLeave={handleDragLeave}
       style={{ 
         border: '1px solid #ccc', 
@@ -448,22 +584,33 @@ export const TreeView: React.FC<TreeViewProps> = ({
         flexDirection: 'column',
         position: 'relative'
       }}
+      data-component-id={componentId}
     >
-      {/* Drop indicator line */}
+      {/* Drop indicator silhouette */}
       {dropIndicator.visible && (
         <div 
-          className="drop-indicator-line"
+          className="drop-indicator-silhouette"
           style={{
             position: 'absolute',
-            left: 0,
-            right: 0,
-            top: `${dropIndicator.top}px`,
-            height: '2px',
-            backgroundColor: '#1890ff',
+            left: '8px',
+            right: '8px',
+            top: `${dropIndicator.top - 15}px`, // Center the silhouette
+            padding: '6px 8px',
+            backgroundColor: 'rgba(24, 144, 255, 0.1)',
+            border: '1px dashed #1890ff',
+            borderRadius: '4px',
+            color: '#1890ff',
+            fontSize: '14px',
+            fontStyle: 'italic',
+            opacity: 0.8,
             zIndex: 1000,
-            pointerEvents: 'none'
+            pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'center'
           }}
-        />
+        >
+          <span>{dropIndicator.itemName || "Dragged Item"}</span>
+        </div>
       )}
       
       <div style={{ 
