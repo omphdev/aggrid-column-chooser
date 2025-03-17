@@ -1,8 +1,7 @@
-// TreeViews.tsx with source awareness
+// TreeViews.tsx with fixed drop indicator cleanup
 import React, { useState, useRef, useEffect } from "react";
 import { ColumnItem, TreeItemProps, TreeViewProps } from "./types";
 import { flattenTree } from "./utils/columnConverter";
-import { getCurrentDragSource, setCurrentDragSource } from "./utils/dragDropUtils";
 
 // Component for rendering a tree item
 export const TreeItem: React.FC<TreeItemProps> = ({ 
@@ -13,13 +12,10 @@ export const TreeItem: React.FC<TreeItemProps> = ({
   depth, 
   index,
   onDragOver,
-  onDragLeave,
-  panelType
+  onDragLeave
 }) => {
   const hasChildren = item.children && item.children.length > 0;
   const indentStyle = { marginLeft: `${depth * 16}px` };
-
-export default TreeView;
   const [isHovered, setIsHovered] = useState(false);
   const itemRef = useRef<HTMLDivElement>(null);
 
@@ -46,10 +42,7 @@ export default TreeView;
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // Only show drop indicators if we're not dragging from this panel
-    const currentSource = getCurrentDragSource();
-    if (currentSource !== panelType && onDragOver) {
+    if (onDragOver) {
       onDragOver(e, itemRef.current, item.id);
     }
   };
@@ -66,9 +59,6 @@ export default TreeView;
     // Remove dragging attribute
     const element = e.currentTarget as HTMLElement;
     element.removeAttribute('data-dragging');
-    
-    // Reset global drag source
-    setCurrentDragSource(null);
   };
 
   return (
@@ -99,7 +89,6 @@ export default TreeView;
         }}
         data-item-id={item.id}
         data-item-index={index}
-        data-panel-type={panelType}
       >
         <div style={indentStyle} className="tree-item-content">
           {hasChildren && (
@@ -141,7 +130,6 @@ export default TreeView;
               index={childIndex}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
-              panelType={panelType}
             />
           ))}
         </div>
@@ -159,8 +147,7 @@ const FlatItem: React.FC<{
   onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void;
   onDragLeave?: () => void;
   groupName?: string;
-  panelType: string;
-}> = ({ item, index, onDragStart, toggleSelect, onDragOver, onDragLeave, groupName, panelType }) => {
+}> = ({ item, index, onDragStart, toggleSelect, onDragOver, onDragLeave, groupName }) => {
   const [isHovered, setIsHovered] = React.useState(false);
   const itemRef = useRef<HTMLDivElement>(null);
   
@@ -176,10 +163,7 @@ const FlatItem: React.FC<{
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // Only show drop indicators if we're not dragging from this panel
-    const currentSource = getCurrentDragSource();
-    if (currentSource !== panelType && onDragOver) {
+    if (onDragOver) {
       onDragOver(e, itemRef.current, item.id);
     }
   };
@@ -196,9 +180,6 @@ const FlatItem: React.FC<{
     // Remove dragging attribute
     const element = e.currentTarget as HTMLElement;
     element.removeAttribute('data-dragging');
-    
-    // Reset global drag source
-    setCurrentDragSource(null);
   };
   
   return (
@@ -227,7 +208,6 @@ const FlatItem: React.FC<{
       }}
       data-item-id={item.id}
       data-item-index={index}
-      data-panel-type={panelType}
       data-group={groupName}
     >
       {groupName && (
@@ -254,8 +234,7 @@ const renderFlatItems = (
   toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void,
   onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void,
   onDragLeave?: () => void,
-  showGroupLabels = false,
-  panelType = 'unknown'
+  showGroupLabels = false
 ) => {
   // Flatten the tree structure while tracking group info for each leaf node
   interface EnhancedFlatItem extends ColumnItem {
@@ -290,7 +269,6 @@ const renderFlatItems = (
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       groupName={showGroupLabels ? item.groupName : undefined}
-      panelType={panelType}
     />
   ));
 };
@@ -321,9 +299,6 @@ export const TreeView: React.FC<TreeViewProps> = ({
     top: 0,
     insertBefore: true
   });
-  
-  // Get panel type from title (simplified)
-  const panelType = title.toLowerCase().includes('available') ? 'available' : 'selected';
 
   // Cleanup function for drop indicators (can be called from multiple places)
   const cleanupDropIndicators = () => {
@@ -337,19 +312,6 @@ export const TreeView: React.FC<TreeViewProps> = ({
   // Handle showing drop indicators
   const handleItemDragOver = (e: React.DragEvent, element: HTMLElement | null, itemId: string) => {
     if (!element) return;
-    
-    // Only show drop indicators if we're not dragging from this panel
-    const currentSource = getCurrentDragSource();
-    if (currentSource === panelType) {
-      // If it's an internal reordering, only show indicator if we have a reorder handler
-      if (onItemReorder) {
-        // Calculate indicator position...
-      } else {
-        // No reordering allowed, hide indicator
-        cleanupDropIndicators();
-        return;
-      }
-    }
     
     // Calculate if we should insert before or after based on mouse position
     const rect = element.getBoundingClientRect();
@@ -374,20 +336,209 @@ export const TreeView: React.FC<TreeViewProps> = ({
     // We need a small delay to avoid flickering when moving between items
     setTimeout(() => {
       // Check if we're still over any item before hiding
-      const containerRect = treeRef.current?.getBoundingClientRect();
-      if (!containerRect) return;
-      
-      const x = event?.clientX || 0;
-      const y = event?.clientY || 0;
-      
-      // Check if point is inside container
-      if (
-        x < containerRect.left || 
-        x > containerRect.right || 
-        y < containerRect.top || 
-        y > containerRect.bottom
-      ) {
+      const dragElement = document.querySelector('[data-dragging="true"]');
+      if (!dragElement) {
         cleanupDropIndicators();
       }
     }, 50);
   };
+
+  const handleContainerDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    
+    // If we're dragging over the container but not over any item,
+    // show indicator at the bottom to allow appending
+    if (!dropIndicator.visible && items.length > 0) {
+      const containerRect = treeRef.current?.getBoundingClientRect();
+      if (containerRect) {
+        setDropIndicator({
+          visible: true,
+          top: containerRect.height - 2,
+          insertBefore: false
+        });
+      }
+    }
+    
+    // Call the parent onDragOver if provided
+    if (onDragOver) {
+      onDragOver(e);
+    }
+  };
+
+  // Add global event listeners for drag end to ensure cleanup
+  useEffect(() => {
+    const handleGlobalDragEnd = () => {
+      cleanupDropIndicators();
+      
+      // Also remove any dragging flags from elements
+      const draggingElements = document.querySelectorAll('[data-dragging="true"]');
+      draggingElements.forEach(el => {
+        el.removeAttribute('data-dragging');
+      });
+    };
+    
+    // Handle drag end globally
+    document.addEventListener('dragend', handleGlobalDragEnd);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('dragend', handleGlobalDragEnd);
+    };
+  }, []);
+
+  const handleTreeDrop = (e: React.DragEvent) => {
+    // Try to parse the data transfer to detect if it's a reordering operation
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
+        ids: string[], 
+        source: string 
+      };
+      
+      // If this is a reordering within the same panel and we have the handler
+      if (
+        ((title === "Selected Columns" && data.source === "selected") ||
+         (title === "Available Columns" && data.source === "available")) &&
+        onItemReorder
+      ) {
+        // Call the reordering handler
+        const positionedEvent = e as any;
+        positionedEvent.dropPosition = {
+          targetId: dropIndicator.itemId,
+          insertBefore: dropIndicator.insertBefore
+        };
+        
+        onItemReorder(positionedEvent);
+        
+        // Clean up drop indicators
+        cleanupDropIndicators();
+        return;
+      }
+    } catch (err) {
+      // Continue with normal drop handling
+    }
+    
+    // Add position info to the event for normal drops
+    const positionedEvent = e as any;
+    positionedEvent.dropPosition = {
+      targetId: dropIndicator.itemId,
+      insertBefore: dropIndicator.insertBefore
+    };
+    
+    // Clean up drop indicators
+    cleanupDropIndicators();
+    
+    // Call the parent onDrop handler
+    if (onDrop) {
+      onDrop(positionedEvent);
+    }
+  };
+
+  return (
+    <div 
+      ref={treeRef}
+      className="tree-view" 
+      onDrop={handleTreeDrop} 
+      onDragOver={handleContainerDragOver}
+      onDragLeave={handleDragLeave}
+      style={{ 
+        border: '1px solid #ccc', 
+        height: '100%', 
+        overflow: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative'
+      }}
+    >
+      {/* Drop indicator line */}
+      {dropIndicator.visible && (
+        <div 
+          className="drop-indicator-line"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: `${dropIndicator.top}px`,
+            height: '2px',
+            backgroundColor: '#1890ff',
+            zIndex: 1000,
+            pointerEvents: 'none'
+          }}
+        />
+      )}
+      
+      <div style={{ 
+        padding: '8px', 
+        fontWeight: 'bold', 
+        borderBottom: '1px solid #ccc',
+        backgroundColor: '#f5f5f5',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <span>{title}</span>
+        <div>
+          {selectedCount > 0 && (
+            <span style={{ 
+              marginRight: '10px', 
+              fontSize: '12px',
+              color: '#1890ff'
+            }}>
+              {selectedCount} selected
+            </span>
+          )}
+          <button 
+            onClick={onSelectAll}
+            className="action-button"
+            style={{ marginRight: '5px' }}
+          >
+            Select All
+          </button>
+          <button 
+            onClick={onClearSelection}
+            className="action-button"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {items.length > 0 ? (
+          flatView ? (
+            // Flat view - render all leaf nodes regardless of hierarchy
+            renderFlatItems(
+              items, 
+              onDragStart, 
+              toggleSelect, 
+              handleItemDragOver, 
+              handleDragLeave,
+              showGroupLabels
+            )
+          ) : (
+            // Tree view - render normally with hierarchy
+            items.map((item, idx) => (
+              <TreeItem 
+                key={item.id} 
+                item={item} 
+                onDragStart={onDragStart} 
+                toggleExpand={toggleExpand}
+                toggleSelect={toggleSelect}
+                depth={0}
+                index={idx}
+                onDragOver={handleItemDragOver}
+                onDragLeave={handleDragLeave}
+              />
+            ))
+          )
+        ) : (
+          <div style={{ 
+            padding: '15px', 
+            textAlign: 'center', 
+            color: '#999' 
+          }}>
+            Drag columns here
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
