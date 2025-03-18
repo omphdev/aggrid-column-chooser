@@ -1,4 +1,6 @@
-/* DragDropStyles.css */
+/* src/components/ColumnChooser/styles.css */
+
+/* TreeView Styles */
 .tree-view {
     position: relative;
   }
@@ -60,7 +62,7 @@
     background-color: rgba(24, 144, 255, 0.05);
   }
   
-  /* Helpers for reordering */
+  /* Column Chooser Layout */
   .column-chooser-container {
     display: flex;
     gap: 10px;
@@ -108,4 +110,16 @@
   
   .action-button:active {
     background-color: #dcf5ff;
+  }
+  
+  /* Checkbox styles */
+  .flat-view-toggle {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  
+  .flat-view-toggle input {
+    margin-right: 5px;
   }

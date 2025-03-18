@@ -1,19 +1,11 @@
-// components/FlatItem.tsx
+// src/components/TreeView/FlatItem.tsx
 import React, { useState, useRef } from "react";
-import { ColumnItem } from "./types";
+import { FlatItemProps } from "../../types";
+import { handleDragStart } from "../../utils/dragSilhouette";
 
-export interface FlatItemProps {
-  item: ColumnItem;
-  index: number;
-  flatIndex?: number;
-  onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
-  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
-  onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void;
-  onDragLeave?: () => void;
-  groupName?: string;
-  showGroupLabels?: boolean;
-}
-
+/**
+ * Component for rendering an item in flat view mode
+ */
 export const FlatItem: React.FC<FlatItemProps> = ({ 
   item, 
   index, 
@@ -28,15 +20,23 @@ export const FlatItem: React.FC<FlatItemProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   const itemRef = useRef<HTMLDivElement>(null);
   
-  const handleDragStart = (e: React.DragEvent) => {
+  // Enhanced drag start handler using silhouette
+  const handleItemDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
+    
+    // Use the silhouette system for visual feedback
+    handleDragStart(e, item.name);
+    
+    // Call the original handler to handle the data transfer
     onDragStart(e, item);
   };
   
+  // Handle clicking for selection
   const handleClick = (e: React.MouseEvent) => {
     toggleSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
   };
 
+  // Handle dragover for drop indicators
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -45,12 +45,14 @@ export const FlatItem: React.FC<FlatItemProps> = ({
     }
   };
 
+  // Handle dragleave to clean up
   const handleDragLeave = () => {
     if (onDragLeave) {
       onDragLeave();
     }
   };
 
+  // Clean up dragging state on drag end
   const handleDragEnd = (e: React.DragEvent) => {
     // Remove dragging attribute
     const element = e.currentTarget as HTMLElement;
@@ -62,7 +64,7 @@ export const FlatItem: React.FC<FlatItemProps> = ({
       ref={itemRef}
       className="flat-item tree-item" 
       draggable={true}
-      onDragStart={handleDragStart}
+      onDragStart={handleItemDragStart}
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -86,6 +88,7 @@ export const FlatItem: React.FC<FlatItemProps> = ({
       data-flat-index={flatIndex !== undefined ? flatIndex : index}
       data-group={groupName}
     >
+      {/* Show group label badge if enabled */}
       {showGroupLabels && groupName && (
         <div style={{ 
           fontSize: '11px',
@@ -98,7 +101,11 @@ export const FlatItem: React.FC<FlatItemProps> = ({
           {groupName}
         </div>
       )}
+      
+      {/* Item name */}
       <span>{item.name}</span>
     </div>
   );
 };
+
+export default FlatItem;

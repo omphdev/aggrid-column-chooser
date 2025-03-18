@@ -1,13 +1,11 @@
-// components/DropIndicator.tsx
+// src/components/DragDrop/DropIndicator.tsx
 import React from 'react';
+import { DropIndicatorProps } from '../../types';
 
-export interface DropIndicatorProps {
-  top: number;
-  left?: number;
-  right?: number;
-  text?: string;
-}
-
+/**
+ * Component to display a visual indicator during drag and drop operations
+ * showing where an item will be dropped
+ */
 export const DropIndicator: React.FC<DropIndicatorProps> = ({
   top,
   left = 8,
@@ -15,7 +13,7 @@ export const DropIndicator: React.FC<DropIndicatorProps> = ({
   text = 'Drop Here'
 }) => (
   <div 
-    className="drop-indicator-silhouette"
+    className="drop-indicator"
     style={{
       position: 'absolute',
       left: `${left}px`,
@@ -23,19 +21,21 @@ export const DropIndicator: React.FC<DropIndicatorProps> = ({
       top: `${top}px`,
       padding: '6px 8px',
       backgroundColor: 'rgba(24, 144, 255, 0.1)',
-      border: '1px dashed #1890ff',
+      border: '2px dashed #1890ff',
       borderRadius: '4px',
       color: '#1890ff',
       fontSize: '14px',
       fontStyle: 'italic',
-      opacity: 0.8,
-      zIndex: 1000,
+      zIndex: 100,
       pointerEvents: 'none',
       display: 'flex',
-      alignItems: 'center'
+      alignItems: 'center',
+      height: '32px',
+      justifyContent: 'center'
     }}
   >
     <span>{text}</span>
   </div>
 );
 
+export default DropIndicator;

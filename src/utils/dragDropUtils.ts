@@ -1,28 +1,334 @@
-// utils/dragDropUtils.ts
+// src/utils/dragDropUtils.ts
 import { ColumnItem } from "../types";
 import { 
   findItemInTree, 
-  removeItemFromTree, 
-  deepCloneColumnItem, 
   countSelectedItems, 
-  getSelectedItems
+  getSelectedItems,
+  deepCloneColumnItem,
+  removeItemFromTree
 } from "./treeUtils";
-import { flattenTree } from "./columnConverter";
+import { flattenTreeWithParentInfo, FlatItem } from "./columnUtils";
 
 // Global variable to track drag source
 let currentDragSource: string | null = null;
 
-// Helper function to get the current drag source
+// Global variable to track dragged item info for silhouette
+let draggedItemInfo: { name: string, ids: string[] } | null = null;
+
+/**
+ * Get the current drag source
+ * @returns Current drag source identifier
+ */
 export const getCurrentDragSource = (): string | null => {
   return currentDragSource;
 };
 
-// Helper function to set the current drag source
+/**
+ * Set the current drag source
+ * @param source Source identifier
+ */
 export const setCurrentDragSource = (source: string | null): void => {
   currentDragSource = source;
 };
 
-// Helper function to insert item into tree at specific index
+/**
+ * Get information about the currently dragged item(s)
+ * @returns Dragged item info
+ */
+export const getDraggedItemInfo = (): { name: string, ids: string[] } | null => {
+  return draggedItemInfo;
+};
+
+/**
+ * Set information about the currently dragged item(s)
+ * @param info Dragged item info
+ */
+export const setDraggedItemInfo = (info: { name: string, ids: string[] } | null): void => {
+  draggedItemInfo = info;
+};
+
+/**
+ * Reset all drag state
+ */
+export const resetDragState = (): void => {
+  setCurrentDragSource(null);
+  setDraggedItemInfo(null);
+};
+
+/**
+ * Find the nearest drop target from a drag event
+ * @param e Drag event
+ * @param rootElement Root container element
+ * @returns Target ID and insertion position
+ */
+export const findDropTarget = (
+  e: React.DragEvent, 
+  rootElement: HTMLElement
+): { targetId: string | undefined, insertBefore: boolean } => {
+  const target = document.elementFromPoint(e.clientX, e.clientY);
+  if (!target) return { targetId: undefined, insertBefore: true };
+  
+  // Find the closest tree-item ancestor
+  let treeItem = target.closest('.tree-item') as HTMLElement;
+  if (!treeItem) return { targetId: undefined, insertBefore: true };
+  
+  // Get the item ID from data attribute
+  const targetId = treeItem.dataset.itemId;
+  
+  // Calculate if we should insert before or after based on mouse position
+  const rect = treeItem.getBoundingClientRect();
+  const mouseY = e.clientY;
+  const threshold = rect.top + (rect.height / 2);
+  const insertBefore = mouseY < threshold;
+  
+  return { targetId, insertBefore };
+};
+
+/**
+ * Handle drag start for the available columns panel
+ * @param e Drag event
+ * @param item Item being dragged
+ * @param items All items in the panel
+ */
+export const handleDragStartForAvailable = (
+  e: React.DragEvent, 
+  item: ColumnItem,
+  items: ColumnItem[]
+) => {
+  // Set the global source
+  setCurrentDragSource('available');
+  
+  // Always set up data transfer with this item ID
+  // For single item dragging without requiring selection first
+  const itemIds = [item.id];
+  
+  // If the item is already selected, include other selected items too
+  if (item.selected && countSelectedItems(items) > 1) {
+    // Use all selected items
+    const selectedIds = getSelectedItems(items);
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      ids: selectedIds,
+      source: 'available',
+      itemName: selectedIds.length > 1 ? `${selectedIds.length} columns` : item.name
+    }));
+    
+    // Store info about dragged items
+    setDraggedItemInfo({
+      name: selectedIds.length > 1 ? `${selectedIds.length} columns` : item.name,
+      ids: selectedIds
+    });
+  } else {
+    // Just drag this one item, ignoring any other selections
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      ids: itemIds,
+      source: 'available',
+      itemName: item.name
+    }));
+    
+    // Store info about dragged item
+    setDraggedItemInfo({
+      name: item.name,
+      ids: itemIds
+    });
+  }
+  
+  // Mark the element as being dragged
+  const element = e.currentTarget as HTMLElement;
+  element.setAttribute('data-dragging', 'true');
+};
+
+/**
+ * Handle drag start for the selected columns panel
+ * @param e Drag event
+ * @param item Item being dragged
+ * @param items All items in the panel
+ */
+export const handleDragStartForSelected = (
+  e: React.DragEvent, 
+  item: ColumnItem,
+  items: ColumnItem[]
+) => {
+  // Set the global source
+  setCurrentDragSource('selected');
+  
+  // Always set up data transfer with this item ID
+  // For single item dragging without requiring selection first
+  const itemIds = [item.id];
+  
+  // If the item is already selected, include other selected items too
+  if (item.selected && countSelectedItems(items) > 1) {
+    // Use all selected items
+    const selectedIds = getSelectedItems(items);
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      ids: selectedIds,
+      source: 'selected',
+      itemName: selectedIds.length > 1 ? `${selectedIds.length} columns` : item.name
+    }));
+    
+    // Store info about dragged items
+    setDraggedItemInfo({
+      name: selectedIds.length > 1 ? `${selectedIds.length} columns` : item.name,
+      ids: selectedIds
+    });
+  } else {
+    // Just drag this one item, ignoring any other selections
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      ids: itemIds,
+      source: 'selected',
+      itemName: item.name
+    }));
+    
+    // Store info about dragged item
+    setDraggedItemInfo({
+      name: item.name,
+      ids: itemIds
+    });
+  }
+  
+  // Mark the element as being dragged
+  const element = e.currentTarget as HTMLElement;
+  element.setAttribute('data-dragging', 'true');
+};
+
+/**
+ * Handle drag end to clean up UI state
+ * @param e Drag event
+ */
+export const handleDragEnd = (e: React.DragEvent): void => {
+  // Reset all drag state
+  resetDragState();
+  
+  // Remove dragging attribute from all elements
+  const draggingElements = document.querySelectorAll('[data-dragging="true"]');
+  draggingElements.forEach(el => {
+    el.removeAttribute('data-dragging');
+  });
+};
+
+/**
+ * Process drop operations with position targeting and flat view support
+ * @param e Drag event
+ * @param sourcePanel Source panel identifier
+ * @param availableColumns Available columns
+ * @param selectedColumns Selected columns
+ * @param allPossibleColumns Reference to all possible columns
+ * @param clearSelectionFunctions Function to clear all selections
+ * @param isFlatView Whether we're in flat view mode
+ * @returns Updated available and selected column arrays
+ */
+export const processDragDrop = (
+  e: React.DragEvent,
+  sourcePanel: string,
+  availableColumns: ColumnItem[],
+  selectedColumns: ColumnItem[],
+  allPossibleColumns: ColumnItem[],
+  clearSelectionFunctions: () => void,
+  isFlatView: boolean = false
+): { 
+  newAvailable: ColumnItem[], 
+  newSelected: ColumnItem[] 
+} => {
+  e.preventDefault();
+  
+  try {
+    const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
+      ids: string[], 
+      source: string 
+    };
+    
+    if (data.source === sourcePanel && data.ids && data.ids.length > 0) {
+      // Create new arrays to avoid mutation
+      let newAvailable = [...availableColumns];
+      let newSelected = [...selectedColumns];
+      
+      // Find the drop target (where to insert)
+      const dropContainer = e.currentTarget as HTMLElement;
+      const { targetId, insertBefore } = findDropTarget(e, dropContainer);
+      
+      // Process each selected item
+      for (const draggedItemId of data.ids) {
+        const sourceItems = data.source === 'available' ? availableColumns : selectedColumns;
+        const draggedItem = findItemInTree(sourceItems, draggedItemId);
+        
+        if (draggedItem) {
+          // Clone the dragged item
+          const clonedItem = deepCloneColumnItem(draggedItem);
+          
+          if (data.source === 'available') {
+            // Remove from available
+            newAvailable = removeItemFromTree(newAvailable, draggedItemId);
+            
+            // Add to selected at specific position
+            if (isFlatView) {
+              newSelected = insertItemIntoFlatList(
+                newSelected, 
+                clonedItem, 
+                allPossibleColumns,
+                targetId,
+                insertBefore
+              );
+            } else {
+              newSelected = insertItemIntoTreeAtIndex(
+                newSelected, 
+                clonedItem, 
+                allPossibleColumns,
+                targetId,
+                insertBefore
+              );
+            }
+          } else {
+            // Remove from selected
+            newSelected = removeItemFromTree(newSelected, draggedItemId);
+            
+            // Add to available (using helper to preserve hierarchy)
+            if (sourcePanel === 'available' && isFlatView) {
+              newAvailable = insertItemIntoFlatList(
+                newAvailable, 
+                clonedItem, 
+                allPossibleColumns,
+                targetId,
+                insertBefore
+              );
+            } else {
+              newAvailable = insertItemIntoTreeAtIndex(
+                newAvailable, 
+                clonedItem, 
+                allPossibleColumns,
+                targetId,
+                insertBefore
+              );
+            }
+          }
+        }
+      }
+      
+      // Clear selections after drag
+      clearSelectionFunctions();
+      
+      // Reset the current drag source after successful drop
+      setCurrentDragSource(null);
+      
+      return { newAvailable, newSelected };
+    }
+  } catch (err) {
+    console.error('Error processing drag data:', err);
+  }
+  
+  // Reset drag source on any error too
+  setCurrentDragSource(null);
+  
+  return { newAvailable: availableColumns, newSelected: selectedColumns };
+};
+
+/**
+ * Insert an item into a tree structure at a specific position
+ * @param items Tree structure
+ * @param item Item to insert
+ * @param allPossibleColumns Reference to all possible columns for group structure
+ * @param targetId Target item ID to insert near
+ * @param insertBefore Whether to insert before or after the target
+ * @returns Updated tree with the item inserted
+ */
 export const insertItemIntoTreeAtIndex = (
   items: ColumnItem[], 
   item: ColumnItem,
@@ -96,7 +402,15 @@ export const insertItemIntoTreeAtIndex = (
   return items;
 };
 
-// Helper function to insert an item into a flat view at a specific position
+/**
+ * Insert an item into a flat list at a specific position
+ * @param tree Tree structure
+ * @param item Item to insert
+ * @param allPossibleColumns Reference to all possible columns for group structure
+ * @param targetId Target item ID to insert near
+ * @param insertBefore Whether to insert before or after the target
+ * @returns Updated tree with the item inserted in flat structure
+ */
 export const insertItemIntoFlatList = (
   tree: ColumnItem[],
   item: ColumnItem,
@@ -261,224 +575,4 @@ export const insertItemIntoFlatList = (
   }
   
   return tree;
-};
-
-// Helper function to flatten tree but preserve parent information
-interface FlatItem extends ColumnItem {
-  parentId?: string;
-}
-
-export const flattenTreeWithParentInfo = (items: ColumnItem[]): FlatItem[] => {
-  const result: FlatItem[] = [];
-  
-  const processItem = (item: ColumnItem, parentId?: string) => {
-    // Add this item with parent info
-    const flatItem: FlatItem = { ...item, parentId };
-    result.push(flatItem);
-    
-    // Process children if any
-    if (item.children && item.children.length > 0 && item.expanded !== false) {
-      item.children.forEach(child => processItem(child, item.id));
-    }
-  };
-  
-  items.forEach(item => processItem(item));
-  return result;
-};
-
-// Handle drag start for the available items panel
-export const handleDragStartForAvailable = (
-  e: React.DragEvent, 
-  item: ColumnItem,
-  items: ColumnItem[]
-) => {
-  // Set the global source
-  setCurrentDragSource('available');
-  
-  // Always set up data transfer with this item ID
-  // For single item dragging without requiring selection first
-  const itemIds = [item.id];
-  
-  // If the item is already selected, include other selected items too
-  if (item.selected && countSelectedItems(items) > 1) {
-    // Use all selected items
-    const selectedIds = getSelectedItems(items);
-    e.dataTransfer.setData('text/plain', JSON.stringify({
-      ids: selectedIds,
-      source: 'available'
-    }));
-  } else {
-    // Just drag this one item, ignoring any other selections
-    e.dataTransfer.setData('text/plain', JSON.stringify({
-      ids: itemIds,
-      source: 'available'
-    }));
-  }
-  
-  // Mark the element as being dragged
-  const element = e.currentTarget as HTMLElement;
-  element.setAttribute('data-dragging', 'true');
-};
-
-// Handle drag start for the selected items panel
-export const handleDragStartForSelected = (
-  e: React.DragEvent, 
-  item: ColumnItem,
-  items: ColumnItem[]
-) => {
-  // Set the global source
-  setCurrentDragSource('selected');
-  
-  // Always set up data transfer with this item ID
-  // For single item dragging without requiring selection first
-  const itemIds = [item.id];
-  
-  // If the item is already selected, include other selected items too
-  if (item.selected && countSelectedItems(items) > 1) {
-    // Use all selected items
-    const selectedIds = getSelectedItems(items);
-    e.dataTransfer.setData('text/plain', JSON.stringify({
-      ids: selectedIds,
-      source: 'selected'
-    }));
-  } else {
-    // Just drag this one item, ignoring any other selections
-    e.dataTransfer.setData('text/plain', JSON.stringify({
-      ids: itemIds,
-      source: 'selected'
-    }));
-  }
-  
-  // Mark the element as being dragged
-  const element = e.currentTarget as HTMLElement;
-  element.setAttribute('data-dragging', 'true');
-};
-
-// Find nearest tree item from drop event
-export const findDropTarget = (
-  e: React.DragEvent, 
-  rootElement: HTMLElement
-): { targetId: string | undefined, insertBefore: boolean } => {
-  const target = document.elementFromPoint(e.clientX, e.clientY);
-  if (!target) return { targetId: undefined, insertBefore: true };
-  
-  // Find the closest tree-item ancestor
-  let treeItem = target.closest('.tree-item') as HTMLElement;
-  if (!treeItem) return { targetId: undefined, insertBefore: true };
-  
-  // Get the item ID from data attribute
-  const targetId = treeItem.dataset.itemId;
-  
-  // Calculate if we should insert before or after based on mouse position
-  const rect = treeItem.getBoundingClientRect();
-  const mouseY = e.clientY;
-  const threshold = rect.top + (rect.height / 2);
-  const insertBefore = mouseY < threshold;
-  
-  return { targetId, insertBefore };
-};
-
-// Process drop operations with position targeting and flat view support
-export const processDragDrop = (
-  e: React.DragEvent,
-  sourcePanel: string,
-  availableColumns: ColumnItem[],
-  selectedColumns: ColumnItem[],
-  allPossibleColumns: ColumnItem[],
-  clearSelectionFunctions: () => void,
-  isFlatView: boolean = false
-): { 
-  newAvailable: ColumnItem[], 
-  newSelected: ColumnItem[] 
-} => {
-  e.preventDefault();
-  
-  try {
-    const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
-      ids: string[], 
-      source: string 
-    };
-    
-    if (data.source === sourcePanel && data.ids && data.ids.length > 0) {
-      // Create new arrays to avoid mutation
-      let newAvailable = [...availableColumns];
-      let newSelected = [...selectedColumns];
-      
-      // Find the drop target (where to insert)
-      const dropContainer = e.currentTarget as HTMLElement;
-      const { targetId, insertBefore } = findDropTarget(e, dropContainer);
-      
-      // Process each selected item
-      for (const draggedItemId of data.ids) {
-        const sourceItems = data.source === 'available' ? availableColumns : selectedColumns;
-        const draggedItem = findItemInTree(sourceItems, draggedItemId);
-        
-        if (draggedItem) {
-          // Clone the dragged item
-          const clonedItem = deepCloneColumnItem(draggedItem);
-          
-          if (data.source === 'available') {
-            // Remove from available
-            newAvailable = removeItemFromTree(newAvailable, draggedItemId);
-            
-            // Add to selected at specific position
-            if (isFlatView) {
-              newSelected = insertItemIntoFlatList(
-                newSelected, 
-                clonedItem, 
-                allPossibleColumns,
-                targetId,
-                insertBefore
-              );
-            } else {
-              newSelected = insertItemIntoTreeAtIndex(
-                newSelected, 
-                clonedItem, 
-                allPossibleColumns,
-                targetId,
-                insertBefore
-              );
-            }
-          } else {
-            // Remove from selected
-            newSelected = removeItemFromTree(newSelected, draggedItemId);
-            
-            // Add to available (using helper to preserve hierarchy)
-            if (sourcePanel === 'available' && isFlatView) {
-              newAvailable = insertItemIntoFlatList(
-                newAvailable, 
-                clonedItem, 
-                allPossibleColumns,
-                targetId,
-                insertBefore
-              );
-            } else {
-              newAvailable = insertItemIntoTreeAtIndex(
-                newAvailable, 
-                clonedItem, 
-                allPossibleColumns,
-                targetId,
-                insertBefore
-              );
-            }
-          }
-        }
-      }
-      
-      // Clear selections after drag
-      clearSelectionFunctions();
-      
-      // Reset the current drag source after successful drop
-      setCurrentDragSource(null);
-      
-      return { newAvailable, newSelected };
-    }
-  } catch (err) {
-    console.error('Error processing drag data:', err);
-  }
-  
-  // Reset drag source on any error too
-  setCurrentDragSource(null);
-  
-  return { newAvailable: availableColumns, newSelected: selectedColumns };
 };

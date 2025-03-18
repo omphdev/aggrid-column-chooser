@@ -1,142 +1,68 @@
-// App.tsx
-import React, { useState, useCallback, useEffect } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { GridReadyEvent } from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
-import 'ag-grid-enterprise';
-import { TreeView } from './TreeViews';
-import { useAllPossibleColumns, useMockData, useMockColumnDefinitions } from './mockData';
-import { useColumnManagement } from './hooks/useColumnManagement';
+// src/App.tsx
+import React, { useState, useCallback } from 'react';
 import { ColumnDefinition } from './types';
-import './DragDropStyles.css';
+import ColumnChooser from './components/ColumnChooser';
+import MainGrid from './components/MainGrid';
+import DragSilhouette from './components/DragDrop/DragSilhouette';
+import { ColumnProvider } from './contexts/ColumnContext';
 
-// Main App Component
-const ColumnChooserDemo: React.FC = () => {
-  // Get mock data
-  const allPossibleColumns = useAllPossibleColumns();
-  const mockData = useMockData();
-  const mockColumnDefinitions = useMockColumnDefinitions();
+/**
+ * Main application component
+ */
+const App: React.FC = () => {
+  // State to store the currently selected columns
+  const [selectedColumns, setSelectedColumns] = useState<ColumnDefinition[]>([]);
   
-  // State for view toggle and selected columns
-  const [selectedColumnsFlat, setSelectedColumnsFlat] = useState(true);
-  const [selectedColumnDefinitions, setSelectedColumnDefinitions] = useState<ColumnDefinition[]>([]);
-  
-  // Handle selected columns change
+  // Handler for column selection changes
   const handleSelectedColumnsChange = useCallback((columns: ColumnDefinition[]) => {
-    setSelectedColumnDefinitions(columns);
+    setSelectedColumns(columns);
     console.log('Selected columns updated:', columns);
   }, []);
   
-  // Use the column management hook
-  const {
-    rowData,
-    mainGridColumns,
-    availableColumns,
-    selectedColumns,
-    defaultColDef,
-    selectedAvailableCount,
-    selectedSelectedCount,
-    toggleExpandAvailable,
-    toggleExpandSelected,
-    toggleSelectAvailable,
-    toggleSelectSelected,
-    selectAllAvailable,
-    selectAllSelected,
-    clearSelectionAvailable,
-    clearSelectionSelected,
-    handleAvailableItemDragStart,
-    handleSelectedItemDragStart,
-    handleDragOver,
-    handleDropToSelected,
-    handleDropToAvailable,
-    handleSelectedItemReorder,
-    onGridReady,
-    setIsFlatView
-  } = useColumnManagement({
-    allPossibleColumns,
-    mockData,
-    onSelectedColumnsChange: handleSelectedColumnsChange,
-    flatViewSelected: selectedColumnsFlat
-  });
-
-  // Update flat view state in the column management hook when it changes
-  useEffect(() => {
-    setIsFlatView(selectedColumnsFlat);
-  }, [selectedColumnsFlat, setIsFlatView]);
+  // Get sample data for the provider
+  const { useAllPossibleColumns, useMockData } = require('./data/mockData');
+  const allPossibleColumns = useAllPossibleColumns();
+  const mockData = useMockData();
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Column Chooser Section */}
-      <div style={{ display: 'flex', padding: '10px', gap: '10px', height: '300px' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <h3>Column Chooser</h3>
-            
-            <div>
-              <label className="flat-view-toggle">
-                <input
-                  type="checkbox"
-                  checked={selectedColumnsFlat}
-                  onChange={(e) => setSelectedColumnsFlat(e.target.checked)}
-                  style={{ marginRight: '5px' }}
-                />
-                Flat View
-              </label>
-            </div>
-          </div>
-          <div className="column-chooser-container">
-            {/* Available Columns */}
-            <div className="column-chooser-panel">
-              <TreeView 
-                items={availableColumns}
-                onDragStart={handleAvailableItemDragStart}
-                onDrop={handleDropToAvailable}
-                onDragOver={handleDragOver}
-                title="Available Columns"
-                toggleExpand={toggleExpandAvailable}
-                toggleSelect={toggleSelectAvailable}
-                onSelectAll={selectAllAvailable}
-                onClearSelection={clearSelectionAvailable}
-                selectedCount={selectedAvailableCount}
-              />
-            </div>
-            
-            {/* Selected Columns */}
-            <div className="column-chooser-panel">
-              <TreeView 
-                items={selectedColumns}
-                onDragStart={handleSelectedItemDragStart}
-                onDrop={handleDropToSelected}
-                onDragOver={handleDragOver}
-                title="Selected Columns"
-                toggleExpand={toggleExpandSelected}
-                toggleSelect={toggleSelectSelected}
-                onSelectAll={selectAllSelected}
-                onClearSelection={clearSelectionSelected}
-                selectedCount={selectedSelectedCount}
-                flatView={selectedColumnsFlat}
-                showGroupLabels={true}
-                onItemReorder={handleSelectedItemReorder}
-              />
-            </div>
-          </div>
-        </div>
+    <div style={{ 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column',
+      padding: '20px'
+    }}>
+      {/* Initialize the drag silhouette system */}
+      <DragSilhouette />
+      
+      <div style={{ marginBottom: '20px' }}>
+        <h2>AG Grid Column Chooser</h2>
+        <p>Drag columns between panels to customize the grid below</p>
       </div>
       
-      {/* Main Grid */}
-      <div className="ag-theme-alpine" style={{ flex: 1, width: '100%' , marginTop: 80 }}>
-        <AgGridReact
-          rowData={rowData}
-          columnDefs={mainGridColumns}
-          defaultColDef={defaultColDef}
-          onGridReady={(params: GridReadyEvent) => onGridReady(params)}
-          animateRows={true}
-          domLayout="autoHeight"
+      {/* Wrap everything that needs context in the provider */}
+      <ColumnProvider 
+        allPossibleColumns={allPossibleColumns}
+        initialData={mockData}
+        onSelectedColumnsChange={handleSelectedColumnsChange}
+      >
+        {/* Column Chooser */}
+        <ColumnChooser 
+          onSelectedColumnsChange={handleSelectedColumnsChange} 
         />
-      </div>
+        
+        {/* Main Grid */}
+        <MainGrid height="400px" />
+      </ColumnProvider>
+      
+      {/* Debug info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div style={{ marginTop: '20px', fontSize: '12px', color: '#999' }}>
+          <h4>Selected Columns</h4>
+          <pre>{JSON.stringify(selectedColumns, null, 2)}</pre>
+        </div>
+      )}
     </div>
   );
 };
 
-export default ColumnChooserDemo;
+export default App;

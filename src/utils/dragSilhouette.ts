@@ -1,5 +1,4 @@
 // src/utils/dragSilhouette.ts
-// Global silhouette utility for drag operations
 
 // Track if the silhouette is already initialized
 let isInitialized = false;
@@ -86,7 +85,7 @@ export function initializeDragSilhouette() {
   document.addEventListener('dragleave', handleDragLeave);
   
   // Handle the case when user presses Escape key
-  document.addEventListener('keydown', (e) => {
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Escape' && currentDraggedItem.isActive) {
       hideSilhouette();
     }
@@ -201,6 +200,8 @@ export function getDragState() {
 
 /**
  * Helper function to handle dragStart events
+ * @param e The drag event
+ * @param text The text to display in the silhouette
  */
 export function handleDragStart(e: React.DragEvent, text: string) {
   // Set the proper drag effect
@@ -227,7 +228,9 @@ export function handleDragStart(e: React.DragEvent, text: string) {
   } finally {
     // Clean up after a short delay
     setTimeout(() => {
-      document.body.removeChild(emptyImg);
+      if (document.body.contains(emptyImg)) {
+        document.body.removeChild(emptyImg);
+      }
     }, 100);
   }
   

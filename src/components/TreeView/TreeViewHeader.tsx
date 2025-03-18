@@ -1,13 +1,10 @@
-// components/TreeViewHeader.tsx
+// src/components/TreeView/TreeViewHeader.tsx
 import React from "react";
+import { TreeViewHeaderProps } from "../../types";
 
-export interface TreeViewHeaderProps {
-  title: string;
-  selectedCount: number;
-  onSelectAll: () => void;
-  onClearSelection: () => void;
-}
-
+/**
+ * Header component for tree view with selection controls
+ */
 export const TreeViewHeader: React.FC<TreeViewHeaderProps> = ({
   title,
   selectedCount,
@@ -25,6 +22,7 @@ export const TreeViewHeader: React.FC<TreeViewHeaderProps> = ({
   }}>
     <span>{title}</span>
     <div>
+      {/* Show selected count if any */}
       {selectedCount > 0 && (
         <span style={{ 
           marginRight: '10px', 
@@ -34,19 +32,41 @@ export const TreeViewHeader: React.FC<TreeViewHeaderProps> = ({
           {selectedCount} selected
         </span>
       )}
+      
+      {/* Action buttons */}
       <button 
         onClick={onSelectAll}
         className="action-button"
-        style={{ marginRight: '5px' }}
+        style={{ 
+          marginRight: '5px',
+          padding: '2px 8px',
+          border: '1px solid #ddd',
+          borderRadius: '3px',
+          backgroundColor: '#f0f0f0',
+          cursor: 'pointer',
+          fontSize: '12px',
+          transition: 'all 0.2s'
+        }}
       >
         Select All
       </button>
       <button 
         onClick={onClearSelection}
         className="action-button"
+        style={{ 
+          padding: '2px 8px',
+          border: '1px solid #ddd',
+          borderRadius: '3px',
+          backgroundColor: '#f0f0f0',
+          cursor: 'pointer',
+          fontSize: '12px',
+          transition: 'all 0.2s'
+        }}
       >
         Clear
       </button>
     </div>
   </div>
 );
+
+export default TreeViewHeader;

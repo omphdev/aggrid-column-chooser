@@ -1,9 +1,11 @@
-// mockData.ts
-import { ColumnItem, ColumnDefinition } from "./types";
+// src/data/mockData.ts
 import { useMemo } from "react";
-import { convertToTreeStructure } from "./utils/columnConverter";
+import { ColumnItem, ColumnDefinition } from "../types";
+import { convertToTreeStructure } from "../utils/columnUtils";
 
-// Mock column definitions with group path
+/**
+ * Mock column definitions with group path
+ */
 export const useMockColumnDefinitions = () => {
   return useMemo<ColumnDefinition[]>(() => [
     { id: 'id', field: 'id', groupPath: ['Basic Information', 'ID'] },
@@ -19,7 +21,9 @@ export const useMockColumnDefinitions = () => {
   ], []);
 };
 
-// Convert column definitions to tree structure
+/**
+ * Convert column definitions to tree structure for the column chooser
+ */
 export const useAllPossibleColumns = () => {
   const columnDefinitions = useMockColumnDefinitions();
   return useMemo<ColumnItem[]>(() => 
@@ -27,7 +31,9 @@ export const useAllPossibleColumns = () => {
   , [columnDefinitions]);
 };
 
-// Mock data for the main grid
+/**
+ * Mock data for the main grid
+ */
 export const useMockData = () => {
   return useMemo(() => {
     return Array.from({ length: 20 }, (_, i) => ({

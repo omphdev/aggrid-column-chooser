@@ -1,8 +1,12 @@
-// utils/selectionUtils.ts
+// src/utils/selectionUtils.ts
 import { ColumnItem } from "../types";
-import { getAllItemIds } from "./treeUtils";
 
-// Get all visible items in a flat structure, regardless of hierarchy
+/**
+ * Get all visible items in a flat structure, regardless of hierarchy
+ * @param items Tree structure
+ * @param flatView Whether to use flat view mode (only leaf nodes)
+ * @returns Array of visible items with their indices
+ */
 export const getAllVisibleItems = (items: ColumnItem[], flatView: boolean = false): { id: string, index: number }[] => {
   const result: { id: string, index: number }[] = [];
   let index = 0;
@@ -41,7 +45,16 @@ export const getAllVisibleItems = (items: ColumnItem[], flatView: boolean = fals
   return result;
 };
 
-// Enhanced toggle selection with flat view support
+/**
+ * Toggle selection state of an item, with support for multi-select and range selection
+ * @param items Tree structure
+ * @param itemId ID of item to toggle
+ * @param isMultiSelect Whether multi-select is enabled (Ctrl/Cmd key)
+ * @param isRangeSelect Whether range select is enabled (Shift key)
+ * @param lastSelectedId ID of last selected item (for range selection)
+ * @param flatView Whether to use flat view mode
+ * @returns Updated tree with toggled selection state and the new last selected ID
+ */
 export const toggleSelect = (
   items: ColumnItem[], 
   itemId: string, 
@@ -63,10 +76,6 @@ export const toggleSelect = (
       const startIdx = Math.min(currentIndex, lastIndex);
       const endIdx = Math.max(currentIndex, lastIndex);
       const rangeIds = new Set(allItems.slice(startIdx, endIdx + 1).map(item => item.id));
-      
-      // Debug log to help identify selection issues
-      console.log(`Selecting range from index ${startIdx} to ${endIdx}`);
-      console.log(`Range items: ${Array.from(rangeIds).join(', ')}`);
       
       const updateSelectionRange = (itemsList: ColumnItem[]): ColumnItem[] => {
         return itemsList.map(item => {
@@ -123,7 +132,11 @@ export const toggleSelect = (
   return [updateSelection(items), updatedLastSelected];
 };
 
-// Select all items
+/**
+ * Select all items in a tree
+ * @param items Tree structure
+ * @returns Updated tree with all items selected
+ */
 export const selectAll = (items: ColumnItem[]): ColumnItem[] => {
   const updateSelection = (itemList: ColumnItem[]): ColumnItem[] => {
     return itemList.map(item => {
@@ -140,7 +153,11 @@ export const selectAll = (items: ColumnItem[]): ColumnItem[] => {
   return updateSelection(items);
 };
 
-// Clear all selections
+/**
+ * Clear all selections in a tree
+ * @param items Tree structure
+ * @returns Updated tree with no items selected
+ */
 export const clearSelection = (items: ColumnItem[]): ColumnItem[] => {
   const updateSelection = (itemList: ColumnItem[]): ColumnItem[] => {
     return itemList.map(item => {

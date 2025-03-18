@@ -1,7 +1,11 @@
-// components/TreeItem.tsx
+// src/components/TreeView/TreeItem.tsx
 import React, { useState, useRef } from "react";
-import { ColumnItem, TreeItemProps } from "./types";
+import { ColumnItem, TreeItemProps } from "../../types";
+import { handleDragStart } from "../../utils/dragSilhouette";
 
+/**
+ * Component for rendering a tree item with hierarchy
+ */
 export const TreeItem: React.FC<TreeItemProps> = ({ 
   item, 
   onDragStart, 
@@ -17,18 +21,25 @@ export const TreeItem: React.FC<TreeItemProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   const itemRef = useRef<HTMLDivElement>(null);
 
-  // Modified drag start handler that directly handles the column
+  // Enhanced drag start handler that uses the silhouette
   const handleItemDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
+    
+    // Use the silhouette system
+    handleDragStart(e, item.name);
+    
+    // Call the original handler to handle the data transfer
     onDragStart(e, item);
   };
 
+  // Handle clicking on an item for selection
   const handleClick = (e: React.MouseEvent) => {
     // Use e.ctrlKey or e.metaKey (for Mac) to detect multi-select
     // Use e.shiftKey to detect range selection
     toggleSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
   };
 
+  // Handle dragover event for drop indicators
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -37,13 +48,14 @@ export const TreeItem: React.FC<TreeItemProps> = ({
     }
   };
 
+  // Handle dragleave to clean up indicators
   const handleDragLeave = () => {
     if (onDragLeave) {
       onDragLeave();
     }
   };
 
-  // Add dragend handler to clean up
+  // Clean up dragging state on drag end
   const handleDragEnd = (e: React.DragEvent) => {
     // Remove dragging attribute
     const element = e.currentTarget as HTMLElement;
@@ -106,6 +118,7 @@ export const TreeItem: React.FC<TreeItemProps> = ({
         </div>
       </div>
       
+      {/* Render children if expanded */}
       {hasChildren && item.expanded && (
         <div className="tree-children">
           {item.children!.map((child, childIndex) => (
@@ -126,3 +139,5 @@ export const TreeItem: React.FC<TreeItemProps> = ({
     </div>
   );
 };
+
+export default TreeItem;

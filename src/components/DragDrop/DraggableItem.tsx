@@ -1,7 +1,7 @@
 // DraggableTreeItem.tsx
 import React from 'react';
-import { ColumnItem } from './types';
-import { handleDragStart } from './utils/dragSilhouette';
+import { ColumnItem } from '../../types';
+import { handleDragStart } from '../../utils/dragSilhouette';
 
 interface DraggableTreeItemProps {
   item: ColumnItem;
@@ -20,7 +20,7 @@ interface DraggableTreeItemProps {
 /**
  * A enhanced draggable tree item that uses the stable silhouette system
  */
-export const DraggableTreeItem: React.FC<DraggableTreeItemProps> = ({
+export const DraggableItem: React.FC<DraggableTreeItemProps> = ({
   item,
   depth = 0,
   onClick,

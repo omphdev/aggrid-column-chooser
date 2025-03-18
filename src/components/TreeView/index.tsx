@@ -1,71 +1,15 @@
-// TreeViews.tsx - Refactored into smaller components
+// src/components/TreeView/index.tsx
 import React, { useState, useRef, useEffect } from "react";
-import { ColumnItem, TreeItemProps, TreeViewProps } from "./types";
-import { flattenTree } from "./utils/columnConverter";
-import { DragStateManager } from "./utils/dragStateManager";
-import { TreeItem } from "./TreeItem";
-import { FlatItem } from "./FlatItem";
-import { DropIndicator } from "./DropIndicator";
-import { TreeViewHeader } from "./TreeViewHeader";
+import { TreeViewProps, ColumnItem } from "../../types";
+import { flattenTree } from "../../utils/columnUtils";
+import { DragStateManager } from "../../utils/dragStateManager";
+import TreeItem from "./TreeItem";
+import FlatItem from "./FlatItem";
+import DropIndicator from "../DragDrop/DropIndicator";
+import TreeViewHeader from "./TreeViewHeader";
 
 /**
- * Render flat list of items
- */
-const renderFlatItems = (
-  items: ColumnItem[], 
-  onDragStart: (e: React.DragEvent, item: ColumnItem) => void,
-  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void,
-  onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void,
-  onDragLeave?: () => void,
-  showGroupLabels = false
-) => {
-  // Flatten the tree structure while tracking group info for each leaf node
-  interface EnhancedFlatItem extends ColumnItem {
-    groupName?: string;
-    flatIndex?: number;
-  }
-  
-  const flatItems: EnhancedFlatItem[] = [];
-  let flatIndex = 0;
-  
-  const processItem = (item: ColumnItem, groupName?: string) => {
-    if (item.field && (!item.children || item.children.length === 0)) {
-      // This is a leaf node, add it with its group info and index
-      flatItems.push({ 
-        ...item, 
-        groupName,
-        flatIndex: flatIndex++ 
-      });
-    }
-    
-    if (item.children && item.children.length > 0) {
-      // For all children, pass the current item's name as their group
-      const newGroupName = item.name;
-      item.children.forEach(child => processItem(child, newGroupName));
-    }
-  };
-  
-  // Process all items
-  items.forEach(item => processItem(item));
-  
-  return flatItems.map((item, idx) => (
-    <FlatItem
-      key={item.id}
-      item={item}
-      index={idx}
-      flatIndex={item.flatIndex}
-      onDragStart={onDragStart}
-      toggleSelect={toggleSelect}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      groupName={item.groupName}
-      showGroupLabels={showGroupLabels}
-    />
-  ));
-};
-
-/**
- * Main TreeView component
+ * Main TreeView component for rendering hierarchical or flat data
  */
 export const TreeView: React.FC<TreeViewProps> = ({ 
   items, 
@@ -83,8 +27,10 @@ export const TreeView: React.FC<TreeViewProps> = ({
   onItemReorder,
 }) => {
   const treeRef = useRef<HTMLDivElement>(null);
+  // Generate unique ID for this component instance
   const componentId = useRef(`tree-view-${Math.random().toString(36).substring(2, 9)}`).current;
   
+  // State for drop indicator
   const [dropIndicator, setDropIndicator] = useState<{
     visible: boolean;
     top: number;
@@ -98,7 +44,9 @@ export const TreeView: React.FC<TreeViewProps> = ({
     itemName: undefined
   });
 
-  // Cleanup function for drop indicators
+  /**
+   * Clean up drop indicators
+   */
   const cleanupDropIndicators = () => {
     if (DragStateManager.isActive(componentId)) {
       DragStateManager.setActiveDropTarget(null);
@@ -111,13 +59,17 @@ export const TreeView: React.FC<TreeViewProps> = ({
     });
   };
 
-  // Check if we should be allowed to show drop indicators
+  /**
+   * Check if we should be allowed to show drop indicators
+   */
   const canShowDropIndicator = () => {
     return DragStateManager.getActiveDropTarget() === null || 
            DragStateManager.isActive(componentId);
   };
 
-  // Handle showing drop indicators
+  /**
+   * Handle showing drop indicators when dragging over items
+   */
   const handleItemDragOver = (e: React.DragEvent, element: HTMLElement | null, itemId: string) => {
     if (!element) return;
     
@@ -181,6 +133,9 @@ export const TreeView: React.FC<TreeViewProps> = ({
     }
   };
 
+  /**
+   * Handle when drag leaves the component
+   */
   const handleDragLeave = () => {
     // Add a small delay to avoid flickering when moving between items
     setTimeout(() => {
@@ -193,6 +148,9 @@ export const TreeView: React.FC<TreeViewProps> = ({
     }, 50);
   };
 
+  /**
+   * Handle dragover on the container
+   */
   const handleContainerDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     
@@ -234,6 +192,9 @@ export const TreeView: React.FC<TreeViewProps> = ({
     }
   };
 
+  /**
+   * Handle when drag enters the container
+   */
   const handleContainerDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     
@@ -269,7 +230,9 @@ export const TreeView: React.FC<TreeViewProps> = ({
     }
   };
 
-  // Add global event listeners for drag end to ensure cleanup
+  /**
+   * Global event listeners for drag end to ensure cleanup
+   */
   useEffect(() => {
     const handleGlobalDragEnd = () => {
       cleanupDropIndicators();
@@ -295,6 +258,9 @@ export const TreeView: React.FC<TreeViewProps> = ({
     };
   }, [componentId]);
 
+  /**
+   * Handle drop on the tree view
+   */
   const handleTreeDrop = (e: React.DragEvent) => {
     // Try to parse the data transfer to detect if it's a reordering operation
     try {
@@ -342,6 +308,55 @@ export const TreeView: React.FC<TreeViewProps> = ({
     }
   };
 
+  /**
+   * Render flat list of items
+   */
+  const renderFlatItems = () => {
+    // Flatten the tree structure while tracking group info for each leaf node
+    interface EnhancedFlatItem extends ColumnItem {
+      groupName?: string;
+      flatIndex?: number;
+    }
+    
+    const flatItems: EnhancedFlatItem[] = [];
+    let flatIndex = 0;
+    
+    const processItem = (item: ColumnItem, groupName?: string) => {
+      if (item.field && (!item.children || item.children.length === 0)) {
+        // This is a leaf node, add it with its group info and index
+        flatItems.push({ 
+          ...item, 
+          groupName,
+          flatIndex: flatIndex++ 
+        });
+      }
+      
+      if (item.children && item.children.length > 0) {
+        // For all children, pass the current item's name as their group
+        const newGroupName = item.name;
+        item.children.forEach(child => processItem(child, newGroupName));
+      }
+    };
+    
+    // Process all items
+    items.forEach(item => processItem(item));
+    
+    return flatItems.map((item, idx) => (
+      <FlatItem
+        key={item.id}
+        item={item}
+        index={idx}
+        flatIndex={item.flatIndex}
+        onDragStart={onDragStart}
+        toggleSelect={toggleSelect}
+        onDragOver={handleItemDragOver}
+        onDragLeave={handleDragLeave}
+        groupName={item.groupName}
+        showGroupLabels={showGroupLabels}
+      />
+    ));
+  };
+
   return (
     <div 
       ref={treeRef}
@@ -379,14 +394,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
         {items.length > 0 ? (
           flatView ? (
             // Flat view - render all leaf nodes regardless of hierarchy
-            renderFlatItems(
-              items, 
-              onDragStart, 
-              toggleSelect, 
-              handleItemDragOver, 
-              handleDragLeave,
-              showGroupLabels
-            )
+            renderFlatItems()
           ) : (
             // Tree view - render normally with hierarchy
             items.map((item, idx) => (
@@ -416,3 +424,5 @@ export const TreeView: React.FC<TreeViewProps> = ({
     </div>
   );
 };
+
+export default TreeView;

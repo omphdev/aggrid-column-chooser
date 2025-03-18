@@ -1,4 +1,4 @@
-// utils/dragStateManager.ts
+// src/utils/dragStateManager.ts
 
 /**
  * A utility to manage drag state across different tree view panels.

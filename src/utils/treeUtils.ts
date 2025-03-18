@@ -1,8 +1,13 @@
-// utils/treeUtils.ts
-import { ColumnItem } from "../types";
+// src/utils/treeUtils.ts
 import { ColDef } from "ag-grid-community";
+import { ColumnItem } from "../types";
 
-// Helper to toggle expand state of tree items
+/**
+ * Toggle expand state of a tree item
+ * @param treeData Tree structure
+ * @param itemId ID of the item to toggle
+ * @returns Updated tree with toggled expand state
+ */
 export const toggleExpand = (treeData: ColumnItem[], itemId: string): ColumnItem[] => {
   return treeData.map(item => {
     if (item.id === itemId) {
@@ -18,7 +23,12 @@ export const toggleExpand = (treeData: ColumnItem[], itemId: string): ColumnItem
   });
 };
 
-// Helper functions for tree data manipulation
+/**
+ * Find an item in a tree structure by ID
+ * @param items Tree structure
+ * @param itemId ID to find
+ * @returns Found item or null
+ */
 export const findItemInTree = (items: ColumnItem[], itemId: string): ColumnItem | null => {
   for (const item of items) {
     if (item.id === itemId) {
@@ -34,6 +44,12 @@ export const findItemInTree = (items: ColumnItem[], itemId: string): ColumnItem 
   return null;
 };
 
+/**
+ * Remove an item from a tree structure
+ * @param items Tree structure
+ * @param itemId ID to remove
+ * @returns Updated tree with item removed
+ */
 export const removeItemFromTree = (items: ColumnItem[], itemId: string): ColumnItem[] => {
   const result = items.filter(item => item.id !== itemId).map(item => {
     if (item.children && item.children.length > 0) {
@@ -49,6 +65,11 @@ export const removeItemFromTree = (items: ColumnItem[], itemId: string): ColumnI
   return result.filter(item => !item.children || item.children.length > 0 || item.field);
 };
 
+/**
+ * Deep clone a column item and its children
+ * @param item Item to clone
+ * @returns Deep clone of the item
+ */
 export const deepCloneColumnItem = (item: ColumnItem): ColumnItem => {
   return {
     ...item,
@@ -56,7 +77,11 @@ export const deepCloneColumnItem = (item: ColumnItem): ColumnItem => {
   };
 };
 
-// Functions to get all selected items
+/**
+ * Get all selected items from a tree
+ * @param items Tree structure
+ * @returns Array of IDs of selected items
+ */
 export const getSelectedItems = (items: ColumnItem[]): string[] => {
   const selectedIds: string[] = [];
   
@@ -76,7 +101,11 @@ export const getSelectedItems = (items: ColumnItem[]): string[] => {
   return selectedIds;
 };
 
-// Helper to find all item IDs in tree
+/**
+ * Get all item IDs with their index in visible order
+ * @param items Tree structure
+ * @returns Array of items with index
+ */
 export const getAllItemIds = (items: ColumnItem[]): { id: string, index: number }[] => {
   const result: { id: string, index: number }[] = [];
   let index = 0;
@@ -95,7 +124,11 @@ export const getAllItemIds = (items: ColumnItem[]): { id: string, index: number 
   return result;
 };
 
-// Count selected items
+/**
+ * Count the number of selected items in a tree
+ * @param items Tree structure
+ * @returns Count of selected items
+ */
 export const countSelectedItems = (items: ColumnItem[]): number => {
   let count = 0;
   
