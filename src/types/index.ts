@@ -19,6 +19,13 @@ export interface ColumnDefinition {
   groupPath: string[];
 }
 
+// Custom column group structure to be passed
+export interface CustomColumnGroup {
+  headerName: string;
+  children: string[]; // Array of column field names
+  id?: string; // Optional ID for tracking
+}
+
 // Item for drag and drop operations
 export interface DragItem {
   id: string;
@@ -135,4 +142,31 @@ export interface SelectedColumnsProps {
 // Props for main grid component
 export interface MainGridProps {
   height?: number | string;
+}
+
+// Props for the column provider with custom groups support
+export interface ColumnProviderProps {
+  children: React.ReactNode;
+  allPossibleColumns: ColumnItem[];
+  initialData: any[];
+  customGroups?: CustomColumnGroup[];
+  onSelectedColumnsChange?: (columns: ColumnDefinition[]) => void;
+}
+
+// Props for custom groups manager component
+export interface CustomGroupsManagerProps {
+  onGroupsChange?: (groups: CustomColumnGroup[]) => void;
+}
+
+// Props for column groups integration component
+export interface ColumnGroupsIntegrationProps {
+  initialGroups?: CustomColumnGroup[];
+  onGroupsChange?: (groups: CustomColumnGroup[]) => void;
+  showDebugger?: boolean;
+}
+
+// Props for column debugger component
+export interface ColumnDebuggerProps {
+  columns: ColumnItem[];
+  customGroups?: CustomColumnGroup[];
 }

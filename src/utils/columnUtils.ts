@@ -1,6 +1,6 @@
 // src/utils/columnUtils.ts
-import { ColumnDefinition, ColumnItem } from '../types';
-import { ColDef } from 'ag-grid-community';
+import { ColumnDefinition, ColumnItem, CustomColumnGroup } from '../types';
+import { ColDef, ColGroupDef } from 'ag-grid-community';
 
 /**
  * Converts a flat list of columns with groupPath information to a hierarchical tree structure
@@ -83,6 +83,60 @@ export const convertToTreeStructure = (columns: ColumnDefinition[]): ColumnItem[
   });
   
   return rootItems;
+};
+
+/**
+ * Convert tree items to AG Grid column definitions with proper support for column groups
+ * @param columns Column tree structure
+ * @returns AG Grid column definitions with hierarchical groups
+ */
+export const convertToAgGridColumns = (columns: ColumnItem[]): (ColDef | ColGroupDef)[] => {
+  const processItem = (item: ColumnItem): ColDef | ColGroupDef | null => {
+    // If it's a leaf node with a field
+    if (item.field && (!item.children || item.children.length === 0)) {
+      return {
+        field: item.field,
+        headerName: item.name,
+        sortable: true,
+        filter: true
+      } as ColDef;
+    }
+    
+    // If it's a group with children
+    if (!item.field && item.children && item.children.length > 0) {
+      const childColumns: (ColDef | ColGroupDef)[] = [];
+      
+      // Process all children
+      item.children.forEach(child => {
+        const processed = processItem(child);
+        if (processed) {
+          childColumns.push(processed);
+        }
+      });
+      
+      // Only create the group if it has children
+      if (childColumns.length > 0) {
+        return {
+          headerName: item.name,
+          children: childColumns,
+          marryChildren: true // Keep children together when column move happens
+        } as ColGroupDef;
+      }
+    }
+    
+    return null;
+  };
+  
+  // Process all top-level items
+  const result: (ColDef | ColGroupDef)[] = [];
+  columns.forEach(item => {
+    const processed = processItem(item);
+    if (processed) {
+      result.push(processed);
+    }
+  });
+  
+  return result;
 };
 
 /**
@@ -191,29 +245,185 @@ export const flattenTreeWithParentInfo = (items: ColumnItem[]): FlatItem[] => {
 };
 
 /**
- * Convert tree items to AG Grid column definitions
- * @param columns Column tree structure
- * @returns AG Grid column definitions
+ * Create a column item tree structure from custom groups definition
+ * @param availableColumns All available columns
+ * @param customGroups Custom groups definition
+ * @returns Column tree structure with the specified groups
  */
-export const convertToAgGridColumns = (columns: ColumnItem[]): ColDef[] => {
-  const flattenColumns = (items: ColumnItem[]): ColDef[] => {
-    return items.reduce<ColDef[]>((acc, column) => {
-      if (column.children && column.children.length > 0) {
-        return [...acc, ...flattenColumns(column.children)];
+export const createColumnTreeFromCustomGroups = (
+  availableColumns: ColumnItem[],
+  customGroups: CustomColumnGroup[]
+): ColumnItem[] => {
+  if (!customGroups || customGroups.length === 0) {
+    return [];
+  }
+  
+  // Create a map for fast lookup of columns by field
+  const columnMap = new Map<string, ColumnItem>();
+  
+  // Populate the map
+  const populateMap = (items: ColumnItem[]) => {
+    items.forEach(item => {
+      if (item.field) {
+        columnMap.set(item.field, item);
       }
       
-      if (column.field) {
-        return [...acc, {
-          field: column.field,
-          headerName: column.name,
-          sortable: true,
-          filter: true
-        }];
+      if (item.children && item.children.length > 0) {
+        populateMap(item.children);
       }
-      
-      return acc;
-    }, []);
+    });
   };
+  
+  populateMap(availableColumns);
+  
+  // Create the grouped structure
+  const result: ColumnItem[] = [];
+  
+  customGroups.forEach(group => {
+    const groupItem: ColumnItem = {
+      id: group.id || `group-${group.headerName.replace(/\s+/g, '-').toLowerCase()}`,
+      name: group.headerName,
+      field: '', // Groups don't have fields
+      expanded: true,
+      children: []
+    };
+    
+    // Add all the specified columns to this group
+    group.children.forEach(fieldName => {
+      const column = columnMap.get(fieldName);
+      if (column) {
+        // Deep clone to avoid reference issues
+        const clonedColumn = JSON.parse(JSON.stringify(column));
+        groupItem.children!.push(clonedColumn);
+      }
+    });
+    
+    // Only add the group if it has children
+    if (groupItem.children && groupItem.children.length > 0) {
+      result.push(groupItem);
+    }
+  });
+  
+  return result;
+};
 
-  return flattenColumns(columns);
+/**
+ * Extract custom groups from a column tree structure
+ * @param columns Column tree structure
+ * @returns Custom groups definition
+ */
+export const extractCustomGroupsFromColumns = (columns: ColumnItem[]): CustomColumnGroup[] => {
+  const customGroups: CustomColumnGroup[] = [];
+  
+  columns.forEach(item => {
+    // Check if this is a group (no field, has children)
+    if (!item.field && item.children && item.children.length > 0) {
+      const childFields: string[] = [];
+      
+      // Extract field names from children
+      const getFieldsFromChildren = (children: ColumnItem[]) => {
+        children.forEach(child => {
+          if (child.field) {
+            childFields.push(child.field);
+          }
+          
+          if (child.children && child.children.length > 0) {
+            getFieldsFromChildren(child.children);
+          }
+        });
+      };
+      
+      getFieldsFromChildren(item.children);
+      
+      // Add to custom groups if we found child fields
+      if (childFields.length > 0) {
+        customGroups.push({
+          headerName: item.name,
+          id: item.id,
+          children: childFields
+        });
+      }
+    }
+  });
+  
+  return customGroups;
+};
+
+/**
+ * Merge the existing column structure with custom groups
+ * This preserves existing columns and adds/updates groups
+ * @param existingColumns Current column structure
+ * @param customGroups Custom groups to apply
+ * @param allPossibleColumns Reference to all available columns
+ * @returns Updated column structure
+ */
+export const mergeCustomGroupsIntoColumns = (
+  existingColumns: ColumnItem[],
+  customGroups: CustomColumnGroup[],
+  allPossibleColumns: ColumnItem[]
+): ColumnItem[] => {
+  if (!customGroups || customGroups.length === 0) {
+    return existingColumns;
+  }
+  
+  // Create a map for fast lookup of columns by field
+  const columnMap = new Map<string, ColumnItem>();
+  
+  // Populate the map with all possible columns
+  const populateMap = (items: ColumnItem[]) => {
+    items.forEach(item => {
+      if (item.field) {
+        columnMap.set(item.field, item);
+      }
+      
+      if (item.children && item.children.length > 0) {
+        populateMap(item.children);
+      }
+    });
+  };
+  
+  populateMap(allPossibleColumns);
+  
+  // Create a set of all fields in the custom groups
+  const customGroupFields = new Set<string>();
+  customGroups.forEach(group => {
+    group.children.forEach(field => {
+      customGroupFields.add(field);
+    });
+  });
+  
+  // Filter out columns that are now part of custom groups
+  const nonGroupedColumns = existingColumns.filter(column => {
+    if (!column.field) return true; // Keep existing groups
+    return !customGroupFields.has(column.field);
+  });
+  
+  // Create the new groups
+  const newGroups: ColumnItem[] = customGroups.map(group => {
+    const groupItem: ColumnItem = {
+      id: group.id || `group-${group.headerName.replace(/\s+/g, '-').toLowerCase()}`,
+      name: group.headerName,
+      field: '', // Groups don't have fields
+      expanded: true,
+      children: []
+    };
+    
+    // Add all the specified columns to this group
+    group.children.forEach(fieldName => {
+      const column = columnMap.get(fieldName);
+      if (column) {
+        // Deep clone to avoid reference issues
+        const clonedColumn = JSON.parse(JSON.stringify(column));
+        groupItem.children!.push(clonedColumn);
+      }
+    });
+    
+    return groupItem;
+  });
+  
+  // Only include groups that have children
+  const validGroups = newGroups.filter(group => group.children && group.children.length > 0);
+  
+  // Combine non-grouped columns and new groups
+  return [...nonGroupedColumns, ...validGroups];
 };

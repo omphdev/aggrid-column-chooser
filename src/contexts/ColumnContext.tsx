@@ -1,11 +1,10 @@
 // src/contexts/ColumnContext.tsx
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { GridApi, ColDef } from 'ag-grid-community';
-import { ColumnItem, ColumnDefinition } from '../types';
+import { GridApi, ColDef, ColGroupDef } from 'ag-grid-community';
+import { ColumnItem, ColumnDefinition, CustomColumnGroup, ColumnProviderProps } from '../types';
 import { 
   toggleExpand,
   countSelectedItems,
-  convertToAgGridColumns,
   findItemInTree,
   removeItemFromTree,
   deepCloneColumnItem
@@ -21,19 +20,29 @@ import {
   insertItemIntoTreeAtIndex,
   insertItemIntoFlatList
 } from '../utils/dragDropUtils';
-import { convertToFlatColumns } from '../utils/columnUtils';
+import { 
+  convertToFlatColumns,
+  convertToAgGridColumns,
+  createColumnTreeFromCustomGroups,
+  extractCustomGroupsFromColumns,
+  mergeCustomGroupsIntoColumns
+} from '../utils/columnUtils';
 
-// Context interface
+// Context interface with custom groups support
 interface ColumnContextType {
   // Data
   rowData: any[];
-  mainGridColumns: ColDef[];
+  mainGridColumns: (ColDef | ColGroupDef)[];
   availableColumns: ColumnItem[];
   selectedColumns: ColumnItem[];
   defaultColDef: ColDef;
   selectedAvailableCount: number;
   selectedSelectedCount: number;
   isFlatView: boolean;
+  
+  // Custom groups functions
+  getCustomGroups: () => CustomColumnGroup[];
+  applyCustomGroups: (groups: CustomColumnGroup[]) => void;
   
   // Actions
   toggleExpandAvailable: (itemId: string) => void;
@@ -57,24 +66,17 @@ interface ColumnContextType {
 // Create the context
 const ColumnContext = createContext<ColumnContextType | undefined>(undefined);
 
-// Props for the provider
-interface ColumnProviderProps {
-  children: ReactNode;
-  allPossibleColumns: ColumnItem[];
-  initialData: any[];
-  onSelectedColumnsChange?: (columns: ColumnDefinition[]) => void;
-}
-
 // Provider component
 export const ColumnProvider: React.FC<ColumnProviderProps> = ({ 
   children, 
   allPossibleColumns,
   initialData,
+  customGroups = [],
   onSelectedColumnsChange 
 }) => {
   // State for the main grid columns and data
   const [rowData, setRowData] = useState<any[]>([]);
-  const [mainGridColumns, setMainGridColumns] = useState<ColDef[]>([]);
+  const [mainGridColumns, setMainGridColumns] = useState<(ColDef | ColGroupDef)[]>([]);
   
   // State for the column chooser
   const [availableColumns, setAvailableColumns] = useState<ColumnItem[]>([]);
@@ -89,6 +91,9 @@ export const ColumnProvider: React.FC<ColumnProviderProps> = ({
 
   // Track the flat view state
   const [isFlatView, setIsFlatView] = useState(false);
+  
+  // Track custom groups
+  const [activeCustomGroups, setActiveCustomGroups] = useState<CustomColumnGroup[]>(customGroups);
   
   // Memoized counts
   const selectedAvailableCount = countSelectedItems(availableColumns);
@@ -114,6 +119,25 @@ export const ColumnProvider: React.FC<ColumnProviderProps> = ({
       onSelectedColumnsChange(flatColumns);
     }
   }, [onSelectedColumnsChange]);
+
+  // Get current custom groups
+  const getCustomGroups = useCallback((): CustomColumnGroup[] => {
+    return extractCustomGroupsFromColumns(selectedColumns);
+  }, [selectedColumns]);
+
+  // Apply custom groups to the grid
+  const applyCustomGroups = useCallback((groups: CustomColumnGroup[]) => {
+    setActiveCustomGroups(groups);
+    
+    // Create a column structure from the custom groups
+    const groupedColumns = createColumnTreeFromCustomGroups(availableColumns, groups);
+    
+    // Update the selected columns
+    setSelectedColumns(groupedColumns);
+    
+    // Update the main grid columns
+    updateMainGridColumns(groupedColumns);
+  }, [availableColumns, updateMainGridColumns]);
 
   // Toggle expand for available columns
   const toggleExpandAvailable = useCallback((itemId: string) => {
@@ -152,7 +176,10 @@ export const ColumnProvider: React.FC<ColumnProviderProps> = ({
     
     setSelectedColumns(updatedColumns);
     setLastSelectedSelectedId(updatedLastSelected);
-  }, [selectedColumns, lastSelectedSelectedId, isFlatView]);
+    
+    // Update the main grid columns
+    updateMainGridColumns(updatedColumns);
+  }, [selectedColumns, lastSelectedSelectedId, isFlatView, updateMainGridColumns]);
 
   // Select all handlers
   const selectAllAvailable = useCallback(() => {
@@ -392,12 +419,19 @@ export const ColumnProvider: React.FC<ColumnProviderProps> = ({
     // Set up initial available columns (all possible columns with expanded state)
     setAvailableColumns(allPossibleColumns);
     
-    // Set up initial selected columns (empty)
-    setSelectedColumns([]);
+    // Set initial custom groups
+    setActiveCustomGroups(customGroups);
     
-    // Set up initial main grid columns (empty)
-    updateMainGridColumns([]);
-  }, [allPossibleColumns, initialData, updateMainGridColumns]);
+    // Set up initial selected columns (using custom groups if provided)
+    if (customGroups && customGroups.length > 0) {
+      const groupedColumns = createColumnTreeFromCustomGroups(allPossibleColumns, customGroups);
+      setSelectedColumns(groupedColumns);
+      updateMainGridColumns(groupedColumns);
+    } else {
+      setSelectedColumns([]);
+      updateMainGridColumns([]);
+    }
+  }, [allPossibleColumns, initialData, customGroups, updateMainGridColumns]);
 
   // Handle grid ready event
   const onGridReady = useCallback((params: { api: GridApi }) => {
@@ -415,6 +449,10 @@ export const ColumnProvider: React.FC<ColumnProviderProps> = ({
     selectedAvailableCount,
     selectedSelectedCount,
     isFlatView,
+    
+    // Custom groups functions
+    getCustomGroups,
+    applyCustomGroups,
     
     // Actions
     toggleExpandAvailable,
