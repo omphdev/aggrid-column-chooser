@@ -67,15 +67,6 @@ const ColumnChooserDemo: React.FC = () => {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '10px', borderBottom: '1px solid #ddd' }}>
-        <h2>Custom Column Chooser Demo</h2>
-        <p>
-          Drag columns between panels to add/remove them. 
-          You can drop a column at a specific position to control the order.
-          With flat view enabled, you can drag columns freely within the selected columns panel.
-        </p>
-      </div>
-      
       {/* Column Chooser Section */}
       <div style={{ display: 'flex', padding: '10px', gap: '10px', height: '300px' }}>
         <div style={{ flex: 1 }}>
@@ -90,11 +81,8 @@ const ColumnChooserDemo: React.FC = () => {
                   onChange={(e) => setSelectedColumnsFlat(e.target.checked)}
                   style={{ marginRight: '5px' }}
                 />
-                Flat View for Selected Columns
+                Flat View
               </label>
-              <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
-                With flat view enabled, you can reorder columns regardless of their groups
-              </div>
             </div>
           </div>
           <div className="column-chooser-container">
@@ -137,9 +125,7 @@ const ColumnChooserDemo: React.FC = () => {
       </div>
       
       {/* Main Grid */}
-      <div className="ag-theme-alpine" style={{ flex: 1, width: '100%' }}>
-        <h3>Main Grid</h3>
-        <p>The grid below displays the columns you've selected in the order you arranged them.</p>
+      <div className="ag-theme-alpine" style={{ flex: 1, width: '100%' , marginTop: 80 }}>
         <AgGridReact
           rowData={rowData}
           columnDefs={mainGridColumns}
