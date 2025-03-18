@@ -1,43 +1,22 @@
 // src/App.tsx
 import React, { useState, useCallback } from 'react';
-import { ColumnDefinition, CustomColumnGroup } from './types';
+import { ColumnDefinition } from './types';
 import ColumnChooser from './components/ColumnChooser';
 import MainGrid from './components/MainGrid';
 import DragSilhouette from './components/DragDrop/DragSilhouette';
-import ColumnGroupsIntegration from './components/ColumnGroupsIntegration';
 import { ColumnProvider } from './contexts/ColumnContext';
 
 /**
- * Main application component with custom column groups support
+ * Main application component
  */
 const App: React.FC = () => {
   // State to store the currently selected columns
   const [selectedColumns, setSelectedColumns] = useState<ColumnDefinition[]>([]);
   
-  // State to store custom groups
-  const [customGroups, setCustomGroups] = useState<CustomColumnGroup[]>([
-    {
-      headerName: 'Personal Information',
-      id: 'personal-info',
-      children: ['column_1', 'column_2', 'column_3', 'column_4']
-    },
-    {
-      headerName: 'Financial Data',
-      id: 'financial-data',
-      children: ['column_21', 'column_22', 'column_23', 'column_24', 'column_25']
-    }
-  ]);
-  
   // Handler for column selection changes
   const handleSelectedColumnsChange = useCallback((columns: ColumnDefinition[]) => {
     setSelectedColumns(columns);
     console.log('Selected columns updated:', columns);
-  }, []);
-  
-  // Handler for custom groups changes
-  const handleCustomGroupsChange = useCallback((groups: CustomColumnGroup[]) => {
-    setCustomGroups(groups);
-    console.log('Custom groups updated:', groups);
   }, []);
   
   // Get sample data for the provider
@@ -47,7 +26,7 @@ const App: React.FC = () => {
 
   return (
     <div style={{ 
-      height: '100vh', 
+      height: '600px', 
       display: 'flex', 
       flexDirection: 'column',
       padding: '20px'
@@ -59,43 +38,29 @@ const App: React.FC = () => {
       <ColumnProvider 
         allPossibleColumns={allPossibleColumns}
         initialData={mockData}
-        customGroups={customGroups}
         onSelectedColumnsChange={handleSelectedColumnsChange}
       >
         <div style={{
           display: 'flex',
           gap: '20px',
-          height: 'calc(100vh - 40px)',
+          height: '600px',
           overflow: 'hidden'
         }}>
-          {/* Main content area - takes up more space */}
+          {/* Main Grid - takes up more space */}
           <div style={{ 
             flex: '3', 
             display: 'flex', 
-            flexDirection: 'column',
-            overflow: 'hidden'
+            flexDirection: 'column' 
           }}>
-            <h3>AG-Grid with Custom Column Groups</h3>
-            
-            {/* Custom Groups Integration */}
-            <ColumnGroupsIntegration 
-              initialGroups={customGroups}
-              onGroupsChange={handleCustomGroupsChange}
-              showDebugger={true}
-            />
-            
-            {/* Main Grid */}
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <MainGrid height="100%" />
-            </div>
+            <h3>Data Grid</h3>
+            <MainGrid height="100%" />
           </div>
           
           {/* Column Chooser - takes up less space */}
           <div style={{ 
             flex: '1', 
             display: 'flex', 
-            flexDirection: 'column',
-            overflow: 'hidden'
+            flexDirection: 'column' 
           }}>
             <ColumnChooser 
               onSelectedColumnsChange={handleSelectedColumnsChange} 
@@ -103,6 +68,14 @@ const App: React.FC = () => {
           </div>
         </div>
       </ColumnProvider>
+      
+      {/* Debug info */}
+      {/* {process.env.NODE_ENV === 'development' && (
+        <div style={{ marginTop: '20px', fontSize: '12px', color: '#999' }}>
+          <h4>Selected Columns</h4>
+          <pre>{JSON.stringify(selectedColumns, null, 2)}</pre>
+        </div>
+      )} */}
     </div>
   );
 };

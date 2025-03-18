@@ -13,7 +13,7 @@ export const ColumnChooser: React.FC<ColumnChooserProps> = ({
   onSelectedColumnsChange
 }) => {
   // State for flat view toggle
-  const [selectedColumnsFlat, setSelectedColumnsFlat] = useState(true);
+  const [selectedColumnsFlat, setSelectedColumnsFlat] = useState(false);
   
   // Get the setIsFlatView function from context
   const { setIsFlatView } = useColumnContext();
