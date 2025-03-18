@@ -34,11 +34,6 @@ const App: React.FC = () => {
       {/* Initialize the drag silhouette system */}
       <DragSilhouette />
       
-      <div style={{ marginBottom: '20px' }}>
-        <h2>AG Grid Column Chooser</h2>
-        <p>Drag columns between panels to customize the grid below</p>
-      </div>
-      
       {/* Wrap everything that needs context in the provider */}
       <ColumnProvider 
         allPossibleColumns={allPossibleColumns}
