@@ -26,7 +26,7 @@ const App: React.FC = () => {
 
   return (
     <div style={{ 
-      height: '100vh', 
+      height: '600px', 
       display: 'flex', 
       flexDirection: 'column',
       padding: '20px'
@@ -40,22 +40,42 @@ const App: React.FC = () => {
         initialData={mockData}
         onSelectedColumnsChange={handleSelectedColumnsChange}
       >
-        {/* Column Chooser */}
-        <ColumnChooser 
-          onSelectedColumnsChange={handleSelectedColumnsChange} 
-        />
-        
-        {/* Main Grid */}
-        <MainGrid height="400px" />
+        <div style={{
+          display: 'flex',
+          gap: '20px',
+          height: '600px',
+          overflow: 'hidden'
+        }}>
+          {/* Main Grid - takes up more space */}
+          <div style={{ 
+            flex: '3', 
+            display: 'flex', 
+            flexDirection: 'column' 
+          }}>
+            <h3>Data Grid</h3>
+            <MainGrid height="100%" />
+          </div>
+          
+          {/* Column Chooser - takes up less space */}
+          <div style={{ 
+            flex: '1', 
+            display: 'flex', 
+            flexDirection: 'column' 
+          }}>
+            <ColumnChooser 
+              onSelectedColumnsChange={handleSelectedColumnsChange} 
+            />
+          </div>
+        </div>
       </ColumnProvider>
       
       {/* Debug info */}
-      {process.env.NODE_ENV === 'development' && (
+      {/* {process.env.NODE_ENV === 'development' && (
         <div style={{ marginTop: '20px', fontSize: '12px', color: '#999' }}>
           <h4>Selected Columns</h4>
           <pre>{JSON.stringify(selectedColumns, null, 2)}</pre>
         </div>
-      )}
+      )} */}
     </div>
   );
 };

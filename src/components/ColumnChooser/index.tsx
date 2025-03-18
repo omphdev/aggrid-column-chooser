@@ -28,7 +28,7 @@ export const ColumnChooser: React.FC<ColumnChooserProps> = ({
       <div style={{ 
         display: 'flex', 
         flexDirection: 'column', 
-        width: '100%' 
+        height: '100%' 
       }}>
         <div style={{ 
           display: 'flex', 
@@ -51,7 +51,8 @@ export const ColumnChooser: React.FC<ColumnChooserProps> = ({
         <div style={{ 
           display: 'flex', 
           gap: '10px',
-          height: '300px'
+          flex: 1,
+          minHeight: 0 // Important for flex to work correctly
         }}>
           <AvailableColumns />
           <SelectedColumns flatView={selectedColumnsFlat} />

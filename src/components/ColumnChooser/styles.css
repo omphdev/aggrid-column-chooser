@@ -71,8 +71,7 @@
 .column-chooser-container {
   display: flex;
   gap: 10px;
-  height: 300px;
-  margin-bottom: 60px;
+  height: 100%;
 }
 
 .column-chooser-panel {
@@ -81,6 +80,7 @@
   flex-direction: column;
   border: 1px solid #ddd;
   border-radius: 4px;
+  min-height: 0; /* Important for flex scrolling */
 }
 
 .column-chooser-header {
@@ -95,6 +95,7 @@
 .column-chooser-content {
   flex: 1;
   overflow: auto;
+  min-height: 0; /* Crucial for proper scrolling in flex container */
 }
 
 /* Button styles */
