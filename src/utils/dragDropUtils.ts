@@ -321,7 +321,60 @@ export const processDragDrop = (
 };
 
 /**
+ * Check if a field belongs to a group in the original column structure
+ * @param allPossibleColumns The original column structure
+ * @param fieldId The field ID to check
+ * @returns {boolean} True if the field belongs to a group
+ */
+export const isPartOfGroup = (allPossibleColumns: ColumnItem[], fieldId: string): boolean => {
+  for (const column of allPossibleColumns) {
+    if (!column.field && column.children && column.children.length > 0) {
+      // This is a group
+      for (const child of column.children) {
+        if (child.id === fieldId) {
+          return true;
+        }
+        
+        if (child.children && child.children.length > 0) {
+          const foundInSubgroup = isPartOfGroup([child], fieldId);
+          if (foundInSubgroup) return true;
+        }
+      }
+    }
+  }
+  
+  return false;
+};
+
+/**
+ * Get the parent group of a field
+ * @param allPossibleColumns The original column structure
+ * @param fieldId The field ID to check
+ * @returns The parent group or null if not found
+ */
+export const getParentGroup = (allPossibleColumns: ColumnItem[], fieldId: string): ColumnItem | null => {
+  for (const column of allPossibleColumns) {
+    if (!column.field && column.children && column.children.length > 0) {
+      // This is a group
+      for (const child of column.children) {
+        if (child.id === fieldId) {
+          return column;
+        }
+        
+        if (child.children && child.children.length > 0) {
+          const foundInSubgroup = getParentGroup([child], fieldId);
+          if (foundInSubgroup) return foundInSubgroup;
+        }
+      }
+    }
+  }
+  
+  return null;
+};
+
+/**
  * Insert an item into a tree structure at a specific position
+ * This version adds support for handling ungrouped columns differently
  * @param items Tree structure
  * @param item Item to insert
  * @param allPossibleColumns Reference to all possible columns for group structure
@@ -336,51 +389,77 @@ export const insertItemIntoTreeAtIndex = (
   targetId?: string,
   insertBefore = true
 ): ColumnItem[] => {
-  // Check if this is a child of any existing group
-  for (const group of allPossibleColumns) {
-    if (group.children && group.children.some(child => child.id === item.id)) {
-      // Find or create the group in items
-      let targetGroup = items.find(i => i.id === group.id);
-      
-      if (!targetGroup) {
-        targetGroup = {
-          id: group.id,
-          name: group.name,
-          field: group.field,
-          expanded: true,
-          children: []
-        };
-        items.push(targetGroup);
-      }
-      
-      if (!targetGroup.children) {
-        targetGroup.children = [];
-      }
-      
-      // If we have a target ID and it belongs to this group, insert at specific position
-      if (targetId) {
-        const targetIndex = targetGroup.children.findIndex(child => child.id === targetId);
-        if (targetIndex >= 0) {
-          // Insert before or after target
-          const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-          // Make sure we don't already have this item
-          if (!targetGroup.children.some(child => child.id === item.id)) {
-            targetGroup.children.splice(insertIndex, 0, item);
+  // Check if this item is part of a group in the original structure
+  const isGroupedColumn = isPartOfGroup(allPossibleColumns, item.id);
+  
+  if (isGroupedColumn) {
+    // Handle grouped columns - try to maintain their group structure
+    for (const group of allPossibleColumns) {
+      if (!group.field && group.children && group.children.length > 0) {
+        // This is a group
+        let belongsToThisGroup = false;
+        
+        // Check if the item belongs to this group or its subgroups
+        for (const child of group.children) {
+          if (child.id === item.id) {
+            belongsToThisGroup = true;
+            break;
           }
+          
+          if (child.children && child.children.length > 0) {
+            const foundInSubgroup = isPartOfGroup([child], item.id);
+            if (foundInSubgroup) {
+              belongsToThisGroup = true;
+              break;
+            }
+          }
+        }
+        
+        if (belongsToThisGroup) {
+          // Find or create the group in items
+          let targetGroup = items.find(i => i.id === group.id);
+          
+          if (!targetGroup) {
+            targetGroup = {
+              id: group.id,
+              name: group.name,
+              field: group.field,
+              expanded: true,
+              children: []
+            };
+            items.push(targetGroup);
+          }
+          
+          if (!targetGroup.children) {
+            targetGroup.children = [];
+          }
+          
+          // If we have a target ID and it belongs to this group, insert at specific position
+          if (targetId) {
+            const targetIndex = targetGroup.children.findIndex(child => child.id === targetId);
+            if (targetIndex >= 0) {
+              // Insert before or after target
+              const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+              // Make sure we don't already have this item
+              if (!targetGroup.children.some(child => child.id === item.id)) {
+                targetGroup.children.splice(insertIndex, 0, item);
+              }
+              return items;
+            }
+          }
+          
+          // Add the item to the group if it's not already there (at the end)
+          if (!targetGroup.children.some(child => child.id === item.id)) {
+            targetGroup.children.push(item);
+          }
+          
           return items;
         }
       }
-      
-      // Add the item to the group if it's not already there (at the end)
-      if (!targetGroup.children.some(child => child.id === item.id)) {
-        targetGroup.children.push(item);
-      }
-      
-      return items;
     }
   }
   
-  // Handle top-level item insertion
+  // For ungrouped columns or if group not found, add at root level
   if (targetId) {
     const targetIndex = items.findIndex(i => i.id === targetId);
     if (targetIndex >= 0) {
@@ -394,7 +473,7 @@ export const insertItemIntoTreeAtIndex = (
     }
   }
   
-  // This is a top-level item, add directly if not already there (at the end)
+  // Add at the end if no target specified or target not found
   if (!items.some(existingItem => existingItem.id === item.id)) {
     items.push(item);
   }
@@ -418,160 +497,58 @@ export const insertItemIntoFlatList = (
   targetId?: string,
   insertBefore = true
 ): ColumnItem[] => {
-  // If there's no target, just add to the appropriate group and return
+  // Check if this item is part of a group in the original structure
+  const isGroupedColumn = isPartOfGroup(allPossibleColumns, item.id);
+  
+  if (isGroupedColumn) {
+    // For grouped columns, preserve the group structure
+    return insertItemIntoTreeAtIndex(tree, item, allPossibleColumns, targetId, insertBefore);
+  }
+  
+  // For ungrouped columns, add at root level
   if (!targetId) {
-    return insertItemIntoTreeAtIndex(tree, item, allPossibleColumns);
-  }
-  
-  // First, find the target item's group path in the original tree structure
-  let targetGroupPath: ColumnItem | null = null;
-  let targetInGroup = false;
-  
-  // Recursive function to find the containing group
-  const findContainingGroup = (items: ColumnItem[]): boolean => {
-    for (const currentItem of items) {
-      if (currentItem.id === targetId) {
-        return true;
-      }
-      
-      if (currentItem.children) {
-        targetInGroup = findContainingGroup(currentItem.children);
-        if (targetInGroup) {
-          targetGroupPath = currentItem;
-          return true;
-        }
-      }
-    }
-    return false;
-  };
-  
-  // Look for the target in the current tree structure
-  for (const rootItem of tree) {
-    if (rootItem.id === targetId) {
-      targetInGroup = false;
-      break;
-    }
-    
-    if (rootItem.children) {
-      targetInGroup = findContainingGroup(rootItem.children);
-      if (targetInGroup) {
-        targetGroupPath = rootItem;
-        break;
-      }
-    }
-  }
-  
-  // 1. Find the item's proper group in the structure
-  let itemGroupId = '';
-  
-  // Find which group this item belongs to in the original structure
-  for (const group of allPossibleColumns) {
-    if (group.children && group.children.some(child => child.id === item.id)) {
-      itemGroupId = group.id;
-      break;
-    }
-  }
-  
-  // 2. Create a temporary flat view of the tree
-  const flatItems = flattenTreeWithParentInfo(tree);
-  const targetIndex = flatItems.findIndex(fi => fi.id === targetId);
-  
-  if (targetIndex === -1) {
-    // If target not found, default to adding to the appropriate group
-    return insertItemIntoTreeAtIndex(tree, item, allPossibleColumns);
-  }
-  
-  // 3. Find the correct insertion point based on the target
-  const finalInsertionIndex = insertBefore ? targetIndex : targetIndex + 1;
-  
-  // 4. Determine which group to insert into
-  let targetGroup: ColumnItem | null = null;
-  let insertIntoRootLevel = false;
-  
-  if (targetGroupPath) {
-    // If target is in a group, find that group
-    targetGroup = findItemInTree(tree, targetGroupPath.id);
-  } else if (itemGroupId) {
-    // If item has a predefined group, use that
-    targetGroup = findItemInTree(tree, itemGroupId);
-    
-    // If group doesn't exist yet, we need to create it
-    if (!targetGroup) {
-      // Find group definition in allPossibleColumns
-      const groupDefinition = allPossibleColumns.find(g => g.id === itemGroupId);
-      
-      if (groupDefinition) {
-        // Create the group
-        const newGroup: ColumnItem = {
-          id: groupDefinition.id,
-          name: groupDefinition.name,
-          field: groupDefinition.field,
-          children: [],
-          expanded: true
-        };
-        
-        // Add to the tree
-        tree.push(newGroup);
-        targetGroup = newGroup;
-      } else {
-        // If can't find group definition, add at root level
-        insertIntoRootLevel = true;
-      }
-    }
-  } else {
-    // If no group information, add at root level
-    insertIntoRootLevel = true;
-  }
-  
-  // 5. Perform the insertion
-  if (insertIntoRootLevel) {
-    // Insert at root level
+    // If no target, just add to the end
     if (!tree.some(existingItem => existingItem.id === item.id)) {
-      // Need to find the right index at root level
-      let rootIndex = 0;
-      let itemsFound = 0;
-      
-      // Count items until we reach our target position
-      for (const flatItem of flatItems) {
-        if (itemsFound === finalInsertionIndex) {
-          break;
-        }
-        
-        if (!flatItem.parentId) {
-          // Root level item
-          rootIndex++;
-        }
-        
-        itemsFound++;
-      }
-      
-      // Insert at the calculated root index
-      tree.splice(rootIndex, 0, item);
+      tree.push(item);
     }
-  } else if (targetGroup && targetGroup.children) {
-    // Insert into the target group
-    if (!targetGroup.children.some(existingItem => existingItem.id === item.id)) {
-      // Find the correct index within this group
-      let groupIndex = 0;
-      let itemsFound = 0;
-      
-      // Count items until we reach our target position
-      for (const flatItem of flatItems) {
-        if (itemsFound === finalInsertionIndex) {
-          break;
-        }
-        
-        if (flatItem.parentId === targetGroup.id) {
-          // Item in this group
-          groupIndex++;
-        }
-        
-        itemsFound++;
-      }
-      
-      // Insert at the calculated group index
-      targetGroup.children.splice(groupIndex, 0, item);
+    return tree;
+  }
+  
+  // Find the target item's index
+  const targetIndex = tree.findIndex(i => i.id === targetId);
+  
+  if (targetIndex >= 0) {
+    // Target is at root level
+    const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+    // Make sure we don't already have this item
+    if (!tree.some(existingItem => existingItem.id === item.id)) {
+      tree.splice(insertIndex, 0, item);
     }
+    return tree;
+  }
+  
+  // Target might be in a group, we need to find it
+  for (const rootItem of tree) {
+    if (rootItem.children) {
+      const targetIndexInGroup = rootItem.children.findIndex(c => c.id === targetId);
+      if (targetIndexInGroup >= 0) {
+        // If the target is in a group but our item is not grouped,
+        // we should add it at root level based on the group's position
+        const rootIndex = tree.indexOf(rootItem);
+        const insertIndex = insertBefore ? rootIndex : rootIndex + 1;
+        
+        // Make sure we don't already have this item
+        if (!tree.some(existingItem => existingItem.id === item.id)) {
+          tree.splice(insertIndex, 0, item);
+        }
+        return tree;
+      }
+    }
+  }
+  
+  // If target not found, add to the end
+  if (!tree.some(existingItem => existingItem.id === item.id)) {
+    tree.push(item);
   }
   
   return tree;
