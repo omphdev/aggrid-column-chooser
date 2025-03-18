@@ -7,18 +7,20 @@ import { convertToTreeStructure } from "../utils/columnUtils";
  * Mock column definitions with group path
  */
 export const useMockColumnDefinitions = () => {
-  return useMemo<ColumnDefinition[]>(() => [
-    { id: 'id', field: 'id', groupPath: ['Basic Information', 'ID'] },
-    { id: 'name', field: 'name', groupPath: ['Basic Information', 'Name'] },
-    { id: 'email', field: 'email', groupPath: ['Basic Information', 'Email'] },
-    { id: 'street', field: 'street', groupPath: ['Address', 'Street'] },
-    { id: 'city', field: 'city', groupPath: ['Address', 'City'] },
-    { id: 'state', field: 'state', groupPath: ['Address', 'State'] },
-    { id: 'zip', field: 'zip', groupPath: ['Address', 'Zip Code'] },
-    { id: 'sales', field: 'sales', groupPath: ['Metrics', 'Sales'] },
-    { id: 'profit', field: 'profit', groupPath: ['Metrics', 'Profit'] },
-    { id: 'cost', field: 'cost', groupPath: ['Metrics', 'Cost'] },
-  ], []);
+  return useMemo<ColumnDefinition[]>(() => {
+    const columns: ColumnDefinition[] = [];
+    
+    // Generate 100 columns with guaranteed uniqueness
+    for (let i = 1; i <= 100; i++) {
+      columns.push({
+        id: `column_${i}`,
+        field: `column_${i}`,
+        groupPath: [`Group ${Math.ceil(i / 10)}`, `Column ${i}`]
+      });
+    }
+    
+    return columns;
+  }, []);
 };
 
 /**
@@ -36,17 +38,32 @@ export const useAllPossibleColumns = () => {
  */
 export const useMockData = () => {
   return useMemo(() => {
-    return Array.from({ length: 20 }, (_, i) => ({
-      id: i + 1,
-      name: `Person ${i + 1}`,
-      email: `person${i + 1}@example.com`,
-      street: `${100 + i} Main St`,
-      city: ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'][i % 5],
-      state: ['NY', 'CA', 'IL', 'TX', 'AZ'][i % 5],
-      zip: `${10000 + i * 100}`,
-      sales: Math.round(Math.random() * 10000),
-      profit: Math.round(Math.random() * 5000),
-      cost: Math.round(Math.random() * 3000)
-    }));
+    // Generate 100 rows
+    return Array.from({ length: 100 }, (_, rowIndex) => {
+      const rowData: Record<string, any> = {};
+      
+      // Generate data for all 100 columns
+      for (let i = 1; i <= 100; i++) {
+        const fieldName = `column_${i}`;
+        
+        // Different data generation strategies based on column type
+        switch (i % 4) {
+          case 0: // Integer
+            rowData[fieldName] = rowIndex * i;
+            break;
+          case 1: // Float
+            rowData[fieldName] = (rowIndex * i) / 10;
+            break;
+          case 2: // String
+            rowData[fieldName] = `Cell ${i}, Row ${rowIndex + 1}`;
+            break;
+          case 3: // Boolean
+            rowData[fieldName] = rowIndex % 2 === 0;
+            break;
+        }
+      }
+      
+      return rowData;
+    });
   }, []);
 };
