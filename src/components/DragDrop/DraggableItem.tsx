@@ -59,25 +59,8 @@ export const DraggableItem: React.FC<DraggableTreeItemProps> = ({
       userSelect: 'none' as const,
       position: 'relative' as const,
       fontWeight: isSelected ? '500' : 'normal',
-      transition: 'background-color 0.2s ease, margin-top 0.3s ease, margin-bottom 0.3s ease',
-      marginTop: 0,
-      marginBottom: 0
+      transition: 'background-color 0.2s ease, margin 0.15s ease-out',
     };
-
-    // Add push-down effect if this is a drag target
-    if (isDragTarget) {
-      if (dragInsertBefore) {
-        return {
-          ...baseStyle,
-          marginTop: 40 // Space for drop indicator
-        };
-      } else {
-        return {
-          ...baseStyle,
-          marginBottom: 40 // Space for drop indicator when inserting after
-        };
-      }
-    }
 
     return baseStyle;
   };
@@ -120,38 +103,3 @@ export const DraggableItem: React.FC<DraggableTreeItemProps> = ({
     </div>
   );
 };
-
-/**
- * A drop indicator that shows where the item will be placed
- */
-export const DropIndicator: React.FC<{
-  top: number;
-  left?: number;
-  right?: number;
-  text?: string;
-}> = ({ top, left = 8, right = 8, text = 'Drop Here' }) => (
-  <div 
-    className="drop-indicator"
-    style={{
-      position: 'absolute',
-      left: `${left}px`,
-      right: `${right}px`,
-      top: `${top}px`,
-      padding: '6px 8px',
-      backgroundColor: 'rgba(24, 144, 255, 0.1)',
-      border: '2px dashed #1890ff',
-      borderRadius: '4px',
-      color: '#1890ff',
-      fontSize: '14px',
-      fontStyle: 'italic',
-      zIndex: 100,
-      pointerEvents: 'none',
-      display: 'flex',
-      alignItems: 'center',
-      height: '32px',
-      justifyContent: 'center'
-    }}
-  >
-<span>{text}</span>
-  </div>
-);

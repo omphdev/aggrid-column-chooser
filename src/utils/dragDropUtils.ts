@@ -64,13 +64,13 @@ export const resetDragState = (): void => {
 export const findDropTarget = (
   e: React.DragEvent, 
   rootElement: HTMLElement
-): { targetId: string | undefined, insertBefore: boolean } => {
+): { targetId: string | undefined, insertBefore: boolean, targetElement: HTMLElement | null } => {
   const target = document.elementFromPoint(e.clientX, e.clientY);
-  if (!target) return { targetId: undefined, insertBefore: true };
+  if (!target) return { targetId: undefined, insertBefore: true, targetElement: null };
   
   // Find the closest tree-item ancestor
   let treeItem = target.closest('.tree-item') as HTMLElement;
-  if (!treeItem) return { targetId: undefined, insertBefore: true };
+  if (!treeItem) return { targetId: undefined, insertBefore: true, targetElement: null };
   
   // Get the item ID from data attribute
   const targetId = treeItem.dataset.itemId;
@@ -81,7 +81,7 @@ export const findDropTarget = (
   const threshold = rect.top + (rect.height / 2);
   const insertBefore = mouseY < threshold;
   
-  return { targetId, insertBefore };
+  return { targetId, insertBefore, targetElement: treeItem };
 };
 
 /**

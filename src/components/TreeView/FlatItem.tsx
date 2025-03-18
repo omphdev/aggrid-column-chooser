@@ -88,20 +88,6 @@ export const FlatItem: React.FC<FlatItemProps> = ({
       data-flat-index={flatIndex !== undefined ? flatIndex : index}
       data-group={groupName}
     >
-      {/* Show group label badge if enabled */}
-      {showGroupLabels && groupName && (
-        <div style={{ 
-          fontSize: '11px',
-          color: '#999',
-          marginRight: '8px',
-          backgroundColor: '#f5f5f5',
-          padding: '2px 4px',
-          borderRadius: '3px'
-        }}>
-          {groupName}
-        </div>
-      )}
-      
       {/* Item name */}
       <span>{item.name}</span>
     </div>
