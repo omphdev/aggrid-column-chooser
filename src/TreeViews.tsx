@@ -141,12 +141,14 @@ export const TreeItem: React.FC<TreeItemProps> = ({
 const FlatItem: React.FC<{
   item: ColumnItem;
   index: number;
+  flatIndex?: number; // Add this new prop
   onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
   toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
   onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void;
   onDragLeave?: () => void;
   groupName?: string;
-}> = ({ item, index, onDragStart, toggleSelect, onDragOver, onDragLeave, groupName }) => {
+  showGroupLabels?: boolean; // Add explicit flag to control group labels
+}> = ({ item, index, flatIndex, onDragStart, toggleSelect, onDragOver, onDragLeave, groupName, showGroupLabels = false }) => {
   const [isHovered, setIsHovered] = React.useState(false);
   const itemRef = useRef<HTMLDivElement>(null);
   
@@ -206,9 +208,10 @@ const FlatItem: React.FC<{
       }}
       data-item-id={item.id}
       data-item-index={index}
+      data-flat-index={flatIndex !== undefined ? flatIndex : index} // Add this data attribute for debugging
       data-group={groupName}
     >
-      {groupName && (
+      {showGroupLabels && groupName && (
         <div style={{ 
           fontSize: '11px',
           color: '#999',
@@ -225,53 +228,7 @@ const FlatItem: React.FC<{
   );
 };
 
-// Render flat list of items
-const renderFlatItems = (
-  items: ColumnItem[], 
-  onDragStart: (e: React.DragEvent, item: ColumnItem) => void,
-  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void,
-  onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void,
-  onDragLeave?: () => void,
-  showGroupLabels = false
-) => {
-  // Flatten the tree structure while tracking group info for each leaf node
-  interface EnhancedFlatItem extends ColumnItem {
-    groupName?: string;
-  }
-  
-  const flatItems: EnhancedFlatItem[] = [];
-  
-  const processItem = (item: ColumnItem, groupName?: string) => {
-    if (item.field && (!item.children || item.children.length === 0)) {
-      // This is a leaf node, add it with its group info
-      flatItems.push({ ...item, groupName });
-    }
-    
-    if (item.children && item.children.length > 0) {
-      // For all children, pass the current item's name as their group
-      const newGroupName = item.name;
-      item.children.forEach(child => processItem(child, newGroupName));
-    }
-  };
-  
-  // Process all items
-  items.forEach(item => processItem(item));
-  
-  return flatItems.map((item, idx) => (
-    <FlatItem
-      key={item.id}
-      item={item}
-      index={idx}
-      onDragStart={onDragStart}
-      toggleSelect={toggleSelect}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      groupName={showGroupLabels ? item.groupName : undefined}
-    />
-  ));
-};
-
-// Create a global store to track which panel is currently being dragged over
+// Global variable to track which panel is currently being dragged over
 // This helps ensure only one panel shows a drop indicator at a time
 const DragStateManager = {
   activeDropTargetId: null as string | null,
@@ -289,6 +246,60 @@ const DragStateManager = {
   }
 };
 
+// Render flat list of items
+const renderFlatItems = (
+  items: ColumnItem[], 
+  onDragStart: (e: React.DragEvent, item: ColumnItem) => void,
+  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void,
+  onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void,
+  onDragLeave?: () => void,
+  showGroupLabels = false
+) => {
+  // Flatten the tree structure while tracking group info for each leaf node
+  interface EnhancedFlatItem extends ColumnItem {
+    groupName?: string;
+    flatIndex?: number; // Add indexing for flat items
+  }
+  
+  const flatItems: EnhancedFlatItem[] = [];
+  let flatIndex = 0;
+  
+  const processItem = (item: ColumnItem, groupName?: string) => {
+    if (item.field && (!item.children || item.children.length === 0)) {
+      // This is a leaf node, add it with its group info and index
+      flatItems.push({ 
+        ...item, 
+        groupName,
+        flatIndex: flatIndex++ 
+      });
+    }
+    
+    if (item.children && item.children.length > 0) {
+      // For all children, pass the current item's name as their group
+      const newGroupName = item.name;
+      item.children.forEach(child => processItem(child, newGroupName));
+    }
+  };
+  
+  // Process all items
+  items.forEach(item => processItem(item));
+  
+  return flatItems.map((item, idx) => (
+    <FlatItem
+      key={item.id}
+      item={item}
+      index={idx}
+      flatIndex={item.flatIndex}
+      onDragStart={onDragStart}
+      toggleSelect={toggleSelect}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      groupName={item.groupName}
+      showGroupLabels={showGroupLabels}
+    />
+  ));
+};
+
 export const TreeView: React.FC<TreeViewProps> = ({ 
   items, 
   onDragStart, 
@@ -301,7 +312,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
   onClearSelection,
   selectedCount,
   flatView = false, // Default to tree view unless specified otherwise
-  showGroupLabels = true, // Show group labels in flat view
+  showGroupLabels = false, // Don't show group labels in flat view by default
   onItemReorder, // New prop for handling reordering
 }) => {
   const treeRef = useRef<HTMLDivElement>(null);

@@ -1,8 +1,14 @@
+// Add this to your src/index.tsx
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import ColumnChooserDemo from './App';
 import reportWebVitals from './reportWebVitals';
+import { initializeDragSilhouette } from './utils/dragSilhouette';
+
+// Initialize the drag silhouette system at application startup
+initializeDragSilhouette();
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement

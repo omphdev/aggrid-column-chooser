@@ -112,7 +112,8 @@ export const useColumnManagement = ({
       itemId,
       isMultiSelect,
       isRangeSelect,
-      lastSelectedAvailableId
+      lastSelectedAvailableId,
+      false // Available columns are usually not in flat view
     );
     
     setAvailableColumns(updatedColumns);
@@ -125,12 +126,13 @@ export const useColumnManagement = ({
       itemId,
       isMultiSelect,
       isRangeSelect,
-      lastSelectedSelectedId
+      lastSelectedSelectedId,
+      isFlatView // Pass the current flat view state
     );
     
     setSelectedColumns(updatedColumns);
     setLastSelectedSelectedId(updatedLastSelected);
-  }, [selectedColumns, lastSelectedSelectedId]);
+  }, [selectedColumns, lastSelectedSelectedId, isFlatView]);
 
   // Select all handlers
   const selectAllAvailable = useCallback(() => {

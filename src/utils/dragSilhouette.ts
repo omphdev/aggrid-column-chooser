@@ -75,8 +75,22 @@ export function initializeDragSilhouette() {
   // Add global drag end listener to hide
   document.addEventListener('dragend', hideSilhouette);
   
+  // Add global drop listener to hide
+  document.addEventListener('drop', hideSilhouette);
+  
   // Track when dragging leaves the window
   document.addEventListener('mouseleave', hideSilhouette);
+  
+  // Also handle cases where the drag operation is canceled
+  document.addEventListener('dragcancel', hideSilhouette);
+  document.addEventListener('dragleave', handleDragLeave);
+  
+  // Handle the case when user presses Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && currentDraggedItem.isActive) {
+      hideSilhouette();
+    }
+  });
   
   // Set initialized flag
   isInitialized = true;
@@ -92,10 +106,24 @@ export function cleanupDragSilhouette() {
   
   document.removeEventListener('mousemove', handleGlobalMouseMove);
   document.removeEventListener('dragend', hideSilhouette);
+  document.removeEventListener('drop', hideSilhouette);
   document.removeEventListener('mouseleave', hideSilhouette);
+  document.removeEventListener('dragcancel', hideSilhouette);
+  document.removeEventListener('dragleave', handleDragLeave);
   
   silhouetteElement = null;
   isInitialized = false;
+}
+
+/**
+ * Handle when the drag leaves the document
+ */
+function handleDragLeave(e: DragEvent) {
+  // Check if leaving the document
+  const toElement = e.relatedTarget as HTMLElement;
+  if (!toElement || toElement.tagName === 'HTML') {
+    hideSilhouette();
+  }
 }
 
 /**
@@ -202,4 +230,13 @@ export function handleDragStart(e: React.DragEvent, text: string) {
       document.body.removeChild(emptyImg);
     }, 100);
   }
+  
+  // Safety check: Ensure silhouette gets hidden when drag ends
+  // by adding an event listener directly to the dragged element
+  const element = e.currentTarget as HTMLElement;
+  
+  // Using one-time event listeners to clean up
+  element.addEventListener('dragend', () => {
+    hideSilhouette();
+  }, { once: true });
 }
