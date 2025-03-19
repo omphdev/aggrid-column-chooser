@@ -1,37 +1,44 @@
-// src/components/MainGrid/index.tsx
-import React from 'react';
+import React, { useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { GridReadyEvent } from 'ag-grid-community';
+import { useColumnContext } from '../../contexts/ColumnContext';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import 'ag-grid-enterprise';
-import { MainGridProps } from '../../types';
-import { useColumnContext } from '../../contexts/ColumnContext';
 
-/**
- * Main grid component for displaying data with the selected columns
- */
-export const MainGrid: React.FC<MainGridProps> = ({
-  height = "100%"
+interface MainGridProps {
+  height?: string | number;
+}
+
+const MainGrid: React.FC<MainGridProps> = ({
+  height = '100%'
 }) => {
   const {
-    rowData,
-    mainGridColumns,
-    defaultColDef,
-    onGridReady
+    state,
+    setGridApi,
+    getDefaultColDef
   } = useColumnContext();
-
+  
+  const { rowData, mainGridColumns } = state;
+  
+  // Create default column definition
+  const defaultColDef = getDefaultColDef();
+  
+  // Grid ready event handler
+  const onGridReady = useCallback((params: GridReadyEvent) => {
+    setGridApi(params.api);
+  }, [setGridApi]);
+  
   return (
-    <div className="ag-theme-alpine" style={{ 
-      width: '100%', 
-      height: height,
-      marginTop: 20
-    }}>
+    <div 
+      className="ag-theme-alpine" 
+      style={{ width: '100%', height }}
+    >
       <AgGridReact
         rowData={rowData}
         columnDefs={mainGridColumns}
         defaultColDef={defaultColDef}
-        onGridReady={(params: GridReadyEvent) => onGridReady(params)}
+        onGridReady={onGridReady}
         animateRows={true}
         domLayout="autoHeight"
       />
@@ -39,4 +46,4 @@ export const MainGrid: React.FC<MainGridProps> = ({
   );
 };
 
-export default MainGrid;
+export default React.memo(MainGrid);

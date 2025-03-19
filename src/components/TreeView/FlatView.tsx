@@ -1,111 +1,88 @@
-// src/components/TreeView/FlatItem.tsx
-import React, { useState, useRef } from "react";
-import { FlatItemProps } from "../../types";
-import { handleDragStart } from "../../utils/dragSilhouette";
+import React, { useRef } from 'react';
+import { ColumnItem } from '../../types';
+import { handleDragStart } from '../../utils/dragUtils';
 
-/**
- * Component for rendering an item in flat view mode
- */
-export const FlatItem: React.FC<FlatItemProps> = ({ 
-  item, 
-  index, 
-  flatIndex, 
-  onDragStart, 
-  toggleSelect, 
-  onDragOver, 
-  onDragLeave, 
-  groupName, 
-  showGroupLabels = false 
+interface FlatItemProps {
+  item: ColumnItem;
+  index: number;
+  flatIndex?: number;
+  onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
+  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
+  onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void;
+  onDragLeave?: () => void;
+  groupName?: string;
+  showGroupLabels?: boolean;
+  getSelectedIds: () => string[];
+  source: 'available' | 'selected';
+}
+
+const FlatItem: React.FC<FlatItemProps> = ({
+  item,
+  index,
+  flatIndex,
+  onDragStart,
+  toggleSelect,
+  onDragOver,
+  onDragLeave,
+  groupName,
+  showGroupLabels = false,
+  getSelectedIds,
+  source
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
   const itemRef = useRef<HTMLDivElement>(null);
   
-  // Enhanced drag start handler using silhouette
-  const handleItemDragStart = (e: React.DragEvent) => {
-    e.stopPropagation();
-    
-    // Use the silhouette system for visual feedback
-    handleDragStart(e, item.name);
-    
-    // Call the original handler to handle the data transfer
-    onDragStart(e, item);
-  };
-  
-  // Handle clicking for selection
+  // Handle click for selection
   const handleClick = (e: React.MouseEvent) => {
     toggleSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
   };
-
-  // Handle dragover for drop indicators
-  const handleDragOver = (e: React.DragEvent) => {
+  
+  // Handle drag start with silhouette
+  const handleItemDragStart = (e: React.DragEvent) => {
+    e.stopPropagation();
+    
+    // Get currently selected IDs
+    const selectedIds = getSelectedIds();
+    
+    // Use our drag utility
+    handleDragStart(e, item, source, selectedIds);
+    
+    // Call parent handler
+    onDragStart(e, item);
+  };
+  
+  // Handle dragover
+  const handleItemDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (onDragOver) {
+    
+    if (onDragOver && itemRef.current) {
       onDragOver(e, itemRef.current, item.id);
     }
-  };
-
-  // Handle dragleave to clean up
-  const handleDragLeave = () => {
-    if (onDragLeave) {
-      onDragLeave();
-    }
-  };
-
-  // Clean up dragging state on drag end
-  const handleDragEnd = (e: React.DragEvent) => {
-    // Remove dragging attribute
-    const element = e.currentTarget as HTMLElement;
-    element.removeAttribute('data-dragging');
   };
   
   return (
     <div 
       ref={itemRef}
-      className="flat-item tree-item" 
+      className={`flat-item ${item.selected ? 'selected' : ''}`}
       draggable={true}
       onDragStart={handleItemDragStart}
-      onDragEnd={handleDragEnd}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
+      onDragOver={handleItemDragOver}
+      onDragLeave={onDragLeave}
       onClick={handleClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{ 
-        padding: '6px 8px', 
-        cursor: 'grab', 
-        display: 'flex',
-        alignItems: 'center',
-        backgroundColor: item.selected ? '#e6f7ff' : isHovered ? '#f5f5f5' : 'white',
-        color: item.selected ? '#1890ff' : 'inherit',
-        borderBottom: '1px solid #f0f0f0',
-        userSelect: 'none',
-        fontWeight: item.selected ? '500' : 'normal',
-        transition: 'background-color 0.2s ease'
-      }}
       data-item-id={item.id}
       data-item-index={index}
       data-flat-index={flatIndex !== undefined ? flatIndex : index}
       data-group={groupName}
     >
-      {/* Show group label badge if enabled */}
+      {/* Show group label if enabled */}
       {showGroupLabels && groupName && (
-        <div style={{ 
-          fontSize: '11px',
-          color: '#999',
-          marginRight: '8px',
-          backgroundColor: '#f5f5f5',
-          padding: '2px 4px',
-          borderRadius: '3px'
-        }}>
-          {groupName}
-        </div>
+        <div className="group-label">{groupName}</div>
       )}
       
       {/* Item name */}
-      <span>{item.name}</span>
+      <span className="item-name">{item.name}</span>
     </div>
   );
 };
 
-export default FlatItem;
+export default React.memo(FlatItem);

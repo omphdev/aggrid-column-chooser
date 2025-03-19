@@ -1,0 +1,39 @@
+.column-chooser {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.column-chooser-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.column-chooser-title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.flat-view-toggle {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.flat-view-toggle input {
+  margin-right: 5px;
+}
+
+.column-chooser-panels {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-height: 0; /* Important for flex to work correctly */
+}
+
+.column-chooser-panels > * {
+  flex: 1;
+}

@@ -1,137 +1,112 @@
-// src/components/TreeView/TreeItem.tsx
-import React, { useState, useRef } from "react";
-import { ColumnItem, TreeItemProps } from "../../types";
-import { handleDragStart } from "../../utils/dragSilhouette";
+import React, { useRef } from 'react';
+import { ColumnItem } from '../../types';
+import { handleDragStart, showInsertIndicator } from '../../utils/dragUtils';
 
-/**
- * Component for rendering a tree item with hierarchy
- */
-export const TreeItem: React.FC<TreeItemProps> = ({ 
-  item, 
-  onDragStart, 
-  toggleExpand, 
-  toggleSelect, 
-  depth, 
+interface TreeItemProps {
+  item: ColumnItem;
+  depth: number;
+  index: number;
+  onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
+  toggleExpand: (id: string) => void;
+  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
+  onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void;
+  onDragLeave?: () => void;
+  getSelectedIds: () => string[];
+  source: 'available' | 'selected';
+}
+
+const TreeItem: React.FC<TreeItemProps> = ({
+  item,
+  depth,
   index,
+  onDragStart,
+  toggleExpand,
+  toggleSelect,
   onDragOver,
-  onDragLeave
+  onDragLeave,
+  getSelectedIds,
+  source
 }) => {
-  const hasChildren = item.children && item.children.length > 0;
-  const indentStyle = { marginLeft: `${depth * 16}px` };
-  const [isHovered, setIsHovered] = useState(false);
   const itemRef = useRef<HTMLDivElement>(null);
-
-  // Enhanced drag start handler that uses the silhouette
+  const hasChildren = item.children && item.children.length > 0;
+  
+  // Handle click for selection
+  const handleClick = (e: React.MouseEvent) => {
+    toggleSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
+  };
+  
+  // Handle drag start with silhouette
   const handleItemDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
     
-    // Use the silhouette system
-    handleDragStart(e, item.name);
+    // Get currently selected IDs
+    const selectedIds = getSelectedIds();
     
-    // Call the original handler to handle the data transfer
+    // Use our drag utility
+    handleDragStart(e, item, source, selectedIds);
+    
+    // Call parent handler
     onDragStart(e, item);
   };
-
-  // Handle clicking on an item for selection
-  const handleClick = (e: React.MouseEvent) => {
-    // Use e.ctrlKey or e.metaKey (for Mac) to detect multi-select
-    // Use e.shiftKey to detect range selection
-    toggleSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
-  };
-
-  // Handle dragover event for drop indicators
-  const handleDragOver = (e: React.DragEvent) => {
+  
+  // Handle dragover
+  const handleItemDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (onDragOver) {
+    
+    if (onDragOver && itemRef.current) {
       onDragOver(e, itemRef.current, item.id);
     }
   };
-
-  // Handle dragleave to clean up indicators
-  const handleDragLeave = () => {
-    if (onDragLeave) {
-      onDragLeave();
-    }
-  };
-
-  // Clean up dragging state on drag end
-  const handleDragEnd = (e: React.DragEvent) => {
-    // Remove dragging attribute
-    const element = e.currentTarget as HTMLElement;
-    element.removeAttribute('data-dragging');
-  };
-
+  
   return (
-    <div>
+    <div className="tree-item-container">
+      {/* Item header */}
       <div 
         ref={itemRef}
-        className="tree-item" 
+        className={`tree-item ${item.selected ? 'selected' : ''}`}
         draggable={true}
         onDragStart={handleItemDragStart}
-        onDragEnd={handleDragEnd}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
+        onDragOver={handleItemDragOver}
+        onDragLeave={onDragLeave}
         onClick={handleClick}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        style={{ 
-          padding: '6px 8px', 
-          cursor: 'grab', 
-          display: 'flex',
-          alignItems: 'center',
-          backgroundColor: item.selected ? '#e6f7ff' : isHovered ? '#f5f5f5' : 'white',
-          color: item.selected ? '#1890ff' : 'inherit',
-          borderBottom: '1px solid #f0f0f0',
-          userSelect: 'none',
-          position: 'relative',
-          fontWeight: item.selected ? '500' : 'normal',
-          transition: 'background-color 0.2s ease'
-        }}
+        style={{ paddingLeft: `${depth * 16}px` }}
         data-item-id={item.id}
         data-item-index={index}
       >
-        <div style={indentStyle} className="tree-item-content">
-          {hasChildren && (
-            <span 
-              onClick={(e) => {
-                e.stopPropagation(); // Prevent selection when clicking expand/collapse
-                toggleExpand(item.id);
-              }} 
-              style={{ 
-                cursor: 'pointer', 
-                marginRight: '5px',
-                display: 'inline-block',
-                width: '16px',
-                height: '16px',
-                textAlign: 'center',
-                lineHeight: '16px',
-                border: '1px solid #ccc',
-                borderRadius: '2px',
-                backgroundColor: isHovered ? '#e8e8e8' : '#f0f0f0'
-              }}
-            >
-              {item.expanded ? '-' : '+'}
-            </span>
-          )}
-          <span>{item.name}</span>
-        </div>
+        {/* Expand/collapse button for groups */}
+        {hasChildren && (
+          <button 
+            className="expand-button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleExpand(item.id);
+            }}
+          >
+            {item.expanded ? '-' : '+'}
+          </button>
+        )}
+        
+        {/* Item name */}
+        <span className="item-name">{item.name}</span>
       </div>
       
-      {/* Render children if expanded */}
+      {/* Children */}
       {hasChildren && item.expanded && (
         <div className="tree-children">
           {item.children!.map((child, childIndex) => (
             <TreeItem 
-              key={child.id} 
-              item={child} 
-              onDragStart={onDragStart} 
-              toggleExpand={toggleExpand}
-              toggleSelect={toggleSelect}
+              key={child.id}
+              item={child}
               depth={depth + 1}
               index={childIndex}
+              onDragStart={onDragStart}
+              toggleExpand={toggleExpand}
+              toggleSelect={toggleSelect}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
+              getSelectedIds={getSelectedIds}
+              source={source}
             />
           ))}
         </div>
@@ -140,4 +115,4 @@ export const TreeItem: React.FC<TreeItemProps> = ({
   );
 };
 
-export default TreeItem;
+export default React.memo(TreeItem);

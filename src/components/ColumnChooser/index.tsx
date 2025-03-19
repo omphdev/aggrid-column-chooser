@@ -1,65 +1,51 @@
-// src/components/ColumnChooser/index.tsx
-import React, { useState, useEffect } from 'react';
-import { ColumnChooserProps } from '../../types';
+import React, { useEffect } from 'react';
 import { useColumnContext } from '../../contexts/ColumnContext';
 import AvailableColumns from './AvailableColumns';
 import SelectedColumns from './SelectedColumns';
-import './styles.css';
+import './ColumnChooser.css';
 
-/**
- * Main column chooser component with both available and selected column panels
- */
-export const ColumnChooser: React.FC<ColumnChooserProps> = ({
+interface ColumnChooserProps {
+  onSelectedColumnsChange?: (columns: any[]) => void;
+}
+
+const ColumnChooser: React.FC<ColumnChooserProps> = ({
   onSelectedColumnsChange
 }) => {
-  // State for flat view toggle
-  const [selectedColumnsFlat, setSelectedColumnsFlat] = useState(false);
+  const {
+    state,
+    setFlatView
+  } = useColumnContext();
   
-  // Get the setIsFlatView function from context
-  const { setIsFlatView } = useColumnContext();
+  const { selectedColumns, isFlatView } = state;
   
-  // Update the context when the flat view toggle changes
+  // Notify parent of changes to selected columns
   useEffect(() => {
-    setIsFlatView(selectedColumnsFlat);
-  }, [selectedColumnsFlat, setIsFlatView]);
+    if (onSelectedColumnsChange) {
+      onSelectedColumnsChange(selectedColumns);
+    }
+  }, [selectedColumns, onSelectedColumnsChange]);
   
   return (
-    <div className="column-chooser-container">
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        height: '100%' 
-      }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: '10px'
-        }}>
-          <h3>Column Chooser</h3>
-          
-          <label className="flat-view-toggle">
-            <input
-              type="checkbox"
-              checked={selectedColumnsFlat}
-              onChange={(e) => setSelectedColumnsFlat(e.target.checked)}
-            />
-            Flat View
-          </label>
-        </div>
+    <div className="column-chooser">
+      <div className="column-chooser-header">
+        <h3 className="column-chooser-title">Column Chooser</h3>
         
-        <div style={{ 
-          display: 'flex', 
-          gap: '10px',
-          flex: 1,
-          minHeight: 0 // Important for flex to work correctly
-        }}>
-          <AvailableColumns />
-          <SelectedColumns flatView={selectedColumnsFlat} />
-        </div>
+        <label className="flat-view-toggle">
+          <input
+            type="checkbox"
+            checked={isFlatView}
+            onChange={(e) => setFlatView(e.target.checked)}
+          />
+          <span>Flat View</span>
+        </label>
+      </div>
+      
+      <div className="column-chooser-panels">
+        <AvailableColumns />
+        <SelectedColumns flatView={isFlatView} />
       </div>
     </div>
   );
 };
 
-export default ColumnChooser;
+export default React.memo(ColumnChooser);

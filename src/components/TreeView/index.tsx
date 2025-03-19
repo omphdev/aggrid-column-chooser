@@ -1,428 +1,244 @@
-// src/components/TreeView/index.tsx
-import React, { useState, useRef, useEffect } from "react";
-import { TreeViewProps, ColumnItem } from "../../types";
-import { flattenTree } from "../../utils/columnUtils";
-import { DragStateManager } from "../../utils/dragStateManager";
-import TreeItem from "./TreeItem";
-import FlatItem from "./FlatItem";
-import DropIndicator from "../DragDrop/DropIndicator";
-import TreeViewHeader from "./TreeViewHeader";
+import React, { useState, useRef, useCallback, useMemo } from 'react';
+import { ColumnItem } from '../../types';
+import TreeItem from './TreeItem';
+import FlatItem from './FlatItem';
+import { parseDragData, showInsertIndicator, hideAllDragIndicators, findDropPosition } from '../../utils/dragUtils';
+import './TreeView.css';
 
-/**
- * Main TreeView component for rendering hierarchical or flat data
- */
-export const TreeView: React.FC<TreeViewProps> = ({ 
-  items, 
-  onDragStart, 
-  onDrop, 
-  onDragOver, 
-  title, 
-  toggleExpand, 
+interface TreeViewProps {
+  items: ColumnItem[];
+  title: string;
+  onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
+  onDrop: (e: React.DragEvent) => void;
+  toggleExpand: (id: string) => void;
+  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
+  onSelectAll: () => void;
+  onClearSelection: () => void;
+  selectedCount: number;
+  flatView?: boolean;
+  showGroupLabels?: boolean;
+  source: 'available' | 'selected';
+}
+
+const TreeView: React.FC<TreeViewProps> = ({
+  items,
+  title,
+  onDragStart,
+  onDrop,
+  toggleExpand,
   toggleSelect,
   onSelectAll,
   onClearSelection,
   selectedCount,
   flatView = false,
   showGroupLabels = false,
-  onItemReorder,
+  source
 }) => {
-  const treeRef = useRef<HTMLDivElement>(null);
-  // Generate unique ID for this component instance
-  const componentId = useRef(`tree-view-${Math.random().toString(36).substring(2, 9)}`).current;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [activeDropTarget, setActiveDropTarget] = useState<string | null>(null);
   
-  // State for drop indicator
-  const [dropIndicator, setDropIndicator] = useState<{
-    visible: boolean;
-    top: number;
-    itemId?: string;
-    insertBefore: boolean;
-    itemName?: string;
-  }>({
-    visible: false,
-    top: 0,
-    insertBefore: true,
-    itemName: undefined
-  });
-
-  /**
-   * Clean up drop indicators
-   */
-  const cleanupDropIndicators = () => {
-    if (DragStateManager.isActive(componentId)) {
-      DragStateManager.setActiveDropTarget(null);
-    }
+  // Get all selected IDs for drag operations
+  const getSelectedIds = useCallback(() => {
+    const result: string[] = [];
     
-    setDropIndicator({
-      visible: false,
-      top: 0,
-      insertBefore: true
-    });
-  };
-
-  /**
-   * Check if we should be allowed to show drop indicators
-   */
-  const canShowDropIndicator = () => {
-    return DragStateManager.getActiveDropTarget() === null || 
-           DragStateManager.isActive(componentId);
-  };
-
-  /**
-   * Handle showing drop indicators when dragging over items
-   */
-  const handleItemDragOver = (e: React.DragEvent, element: HTMLElement | null, itemId: string) => {
+    const collectSelectedIds = (itemList: ColumnItem[]) => {
+      for (const item of itemList) {
+        if (item.selected) {
+          result.push(item.id);
+        }
+        
+        if (item.children && item.children.length > 0) {
+          collectSelectedIds(item.children);
+        }
+      }
+    };
+    
+    collectSelectedIds(items);
+    return result;
+  }, [items]);
+  
+  // Handle drag over for drop indicator
+  const handleItemDragOver = useCallback((e: React.DragEvent, element: HTMLElement | null, itemId: string) => {
     if (!element) return;
     
-    // Set this component as the active drop target
-    DragStateManager.setActiveDropTarget(componentId);
+    // Check if this is a valid drop target
+    const dragData = parseDragData(e);
+    if (!dragData) return;
     
-    // Extract the source panel from dataTransfer
-    try {
-      const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
-        ids: string[], 
-        source: string,
-        itemName?: string
-      };
-      
-      // If we're dragging within the same panel and not a reorder operation, don't show indicators
-      if ((title === "Available Columns" && data.source === "available") ||
-          (title === "Selected Columns" && data.source === "selected")) {
-        // Only show indicator if we support reordering or if this is from a different panel
-        if (!onItemReorder) {
-          cleanupDropIndicators();
-          return;
-        }
-      }
-      
-      // Calculate if we should insert before or after based on mouse position
-      const rect = element.getBoundingClientRect();
-      const mouseY = e.clientY;
-      const threshold = rect.top + (rect.height / 2);
-      const insertBefore = mouseY < threshold;
-      
-      // Calculate position for the drop indicator
-      const offsetTop = insertBefore ? rect.top : rect.bottom;
-      const containerRect = treeRef.current?.getBoundingClientRect();
-      const top = containerRect ? offsetTop - containerRect.top : offsetTop;
-
-      setDropIndicator({
-        visible: true,
-        top,
-        itemId,
-        insertBefore,
-        itemName: data.itemName || "Dragged Item"
-      });
-    } catch (err) {
-      // If we can't parse the data, still show a generic indicator
-      const rect = element.getBoundingClientRect();
-      const mouseY = e.clientY;
-      const threshold = rect.top + (rect.height / 2);
-      const insertBefore = mouseY < threshold;
-      
-      const offsetTop = insertBefore ? rect.top : rect.bottom;
-      const containerRect = treeRef.current?.getBoundingClientRect();
-      const top = containerRect ? offsetTop - containerRect.top : offsetTop;
-
-      setDropIndicator({
-        visible: true,
-        top,
-        itemId,
-        insertBefore,
-        itemName: "Dragged Item"
-      });
-    }
-  };
-
-  /**
-   * Handle when drag leaves the component
-   */
-  const handleDragLeave = () => {
-    // Add a small delay to avoid flickering when moving between items
+    // Don't show indicator if dragging onto itself
+    if (dragData.ids.length === 1 && dragData.ids[0] === itemId) return;
+    
+    // Show the insertion indicator
+    showInsertIndicator(element, e.clientY < element.getBoundingClientRect().top + element.offsetHeight / 2);
+    
+    // Update active drop target
+    setActiveDropTarget(itemId);
+  }, []);
+  
+  // Handle drag leave
+  const handleDragLeave = useCallback(() => {
+    // Small delay to prevent flickering
     setTimeout(() => {
-      // Check if the mouse is still over any part of our component
-      if (!treeRef.current?.contains(document.activeElement) && 
-          DragStateManager.isActive(componentId)) {
-        DragStateManager.setActiveDropTarget(null);
-        cleanupDropIndicators();
+      if (!containerRef.current?.contains(document.activeElement)) {
+        setActiveDropTarget(null);
       }
     }, 50);
-  };
-
-  /**
-   * Handle dragover on the container
-   */
-  const handleContainerDragOver = (e: React.DragEvent) => {
+  }, []);
+  
+  // Handle container drag over
+  const handleContainerDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     
-    // Set this component as the active drop target
-    DragStateManager.setActiveDropTarget(componentId);
-    
-    // If we're dragging over the container but not over any item,
-    // show indicator at the bottom to allow appending
-    if (canShowDropIndicator() && items.length > 0 && !dropIndicator.visible) {
-      const containerRect = treeRef.current?.getBoundingClientRect();
+    // Only handle if not over an item
+    if (activeDropTarget === null && items.length > 0) {
+      const containerRect = containerRef.current?.getBoundingClientRect();
       if (containerRect) {
-        try {
-          const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
-            ids: string[], 
-            source: string,
-            itemName?: string 
-          };
-          
-          setDropIndicator({
-            visible: true,
-            top: containerRect.height - 30, // Position a bit higher to show the silhouette
-            insertBefore: false,
-            itemName: data.itemName || "Dragged Item"
-          });
-        } catch (err) {
-          setDropIndicator({
-            visible: true,
-            top: containerRect.height - 30,
-            insertBefore: false,
-            itemName: "Dragged Item"
-          });
+        // Show indicator at the bottom
+        const lastItem = containerRef.current?.querySelector('.tree-item:last-child, .flat-item:last-child') as HTMLElement;
+        if (lastItem) {
+          showInsertIndicator(lastItem, false);
         }
       }
     }
-    
-    // Call the parent onDragOver if provided
-    if (onDragOver) {
-      onDragOver(e);
+  }, [activeDropTarget, items.length]);
+  
+  // Handle drop
+ const handleDrop = useCallback((e: React.DragEvent) => {
+  e.preventDefault();
+  
+  // Get the drop position
+  let dropPosition;
+  
+  if (activeDropTarget) {
+    // Find the target element
+    const targetElement = document.querySelector(`[data-item-id="${activeDropTarget}"]`) as HTMLElement;
+    if (targetElement) {
+      dropPosition = findDropPosition(e, targetElement);
     }
-  };
-
-  /**
-   * Handle when drag enters the container
-   */
-  const handleContainerDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    
-    // Set this as the active drop target when entering
-    DragStateManager.setActiveDropTarget(componentId);
-    
-    // If the container is empty, show a drop indicator
-    if (items.length === 0) {
-      const containerRect = treeRef.current?.getBoundingClientRect();
-      if (containerRect) {
-        try {
-          const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
-            ids: string[], 
-            source: string,
-            itemName?: string 
-          };
-          
-          setDropIndicator({
-            visible: true,
-            top: containerRect.height / 2,
-            insertBefore: false,
-            itemName: data.itemName || "Dragged Item"
-          });
-        } catch (err) {
-          setDropIndicator({
-            visible: true,
-            top: containerRect.height / 2,
-            insertBefore: false,
-            itemName: "Dragged Item"
-          });
-        }
-      }
-    }
-  };
-
-  /**
-   * Global event listeners for drag end to ensure cleanup
-   */
-  useEffect(() => {
-    const handleGlobalDragEnd = () => {
-      cleanupDropIndicators();
-      
-      // Also remove any dragging flags from elements
-      const draggingElements = document.querySelectorAll('[data-dragging="true"]');
-      draggingElements.forEach(el => {
-        el.removeAttribute('data-dragging');
-      });
-    };
-    
-    // Handle drag end globally
-    document.addEventListener('dragend', handleGlobalDragEnd);
-    
-    // Cleanup
-    return () => {
-      document.removeEventListener('dragend', handleGlobalDragEnd);
-      
-      // When component unmounts, clear active target if it's this component
-      if (DragStateManager.isActive(componentId)) {
-        DragStateManager.setActiveDropTarget(null);
-      }
-    };
-  }, [componentId]);
-
-  /**
-   * Handle drop on the tree view
-   */
-  const handleTreeDrop = (e: React.DragEvent) => {
-    // Try to parse the data transfer to detect if it's a reordering operation
-    try {
-      const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
-        ids: string[], 
-        source: string 
+  } else if (items.length > 0) {
+    // Dropping at the end - use the last item as reference
+    const lastItem = containerRef.current?.querySelector('.tree-item:last-child, .flat-item:last-child') as HTMLElement;
+    if (lastItem) {
+      dropPosition = {
+        targetId: lastItem.dataset.itemId,
+        insertBefore: false
       };
-      
-      // If this is a reordering within the same panel and we have the handler
-      if (
-        ((title === "Selected Columns" && data.source === "selected") ||
-         (title === "Available Columns" && data.source === "available")) &&
-        onItemReorder
-      ) {
-        // Call the reordering handler
-        const positionedEvent = e as any;
-        positionedEvent.dropPosition = {
-          targetId: dropIndicator.itemId,
-          insertBefore: dropIndicator.insertBefore
-        };
-        
-        onItemReorder(positionedEvent);
-        
-        // Clean up drop indicators
-        cleanupDropIndicators();
-        return;
-      }
-    } catch (err) {
-      // Continue with normal drop handling
     }
-    
-    // Add position info to the event for normal drops
-    const positionedEvent = e as any;
-    positionedEvent.dropPosition = {
-      targetId: dropIndicator.itemId,
-      insertBefore: dropIndicator.insertBefore
+  } else {
+    // Empty container - no specific position
+    dropPosition = {
+      targetId: undefined,
+      insertBefore: true
     };
+  }
+  
+  // Enhance the event with position information
+  const enhancedEvent = e as any;
+  if (dropPosition) {
+    enhancedEvent.dropPosition = dropPosition;
+  }
+  
+  // Hide indicators
+  hideAllDragIndicators();
+  setActiveDropTarget(null);
+  
+  // Call parent drop handler
+  onDrop(enhancedEvent);
+}, [activeDropTarget, onDrop, items.length]);;
+  
+  // Generate flat items for flat view mode
+  const flatItems = useMemo(() => {
+    if (!flatView) return [];
     
-    // Clean up drop indicators
-    cleanupDropIndicators();
-    
-    // Call the parent onDrop handler
-    if (onDrop) {
-      onDrop(positionedEvent);
-    }
-  };
-
-  /**
-   * Render flat list of items
-   */
-  const renderFlatItems = () => {
-    // Flatten the tree structure while tracking group info for each leaf node
-    interface EnhancedFlatItem extends ColumnItem {
-      groupName?: string;
-      flatIndex?: number;
-    }
-    
-    const flatItems: EnhancedFlatItem[] = [];
+    const result: Array<{ item: ColumnItem, groupName?: string, flatIndex: number }> = [];
     let flatIndex = 0;
     
     const processItem = (item: ColumnItem, groupName?: string) => {
       if (item.field && (!item.children || item.children.length === 0)) {
-        // This is a leaf node, add it with its group info and index
-        flatItems.push({ 
-          ...item, 
-          groupName,
+        // This is a leaf node
+        result.push({ 
+          item, 
+          groupName, 
           flatIndex: flatIndex++ 
         });
       }
       
       if (item.children && item.children.length > 0) {
-        // For all children, pass the current item's name as their group
+        // Process children with this item as their group
         const newGroupName = item.name;
         item.children.forEach(child => processItem(child, newGroupName));
       }
     };
     
-    // Process all items
     items.forEach(item => processItem(item));
-    
-    return flatItems.map((item, idx) => (
-      <FlatItem
-        key={item.id}
-        item={item}
-        index={idx}
-        flatIndex={item.flatIndex}
-        onDragStart={onDragStart}
-        toggleSelect={toggleSelect}
-        onDragOver={handleItemDragOver}
-        onDragLeave={handleDragLeave}
-        groupName={item.groupName}
-        showGroupLabels={showGroupLabels}
-      />
-    ));
-  };
-
+    return result;
+  }, [items, flatView]);
+  
   return (
     <div 
-      ref={treeRef}
-      className="tree-view" 
-      onDrop={handleTreeDrop} 
+      ref={containerRef}
+      className="tree-view"
       onDragOver={handleContainerDragOver}
-      onDragEnter={handleContainerDragEnter}
+      onDrop={handleDrop}
       onDragLeave={handleDragLeave}
-      style={{ 
-        border: '1px solid #ccc', 
-        height: '100%', 
-        overflow: 'auto',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'relative'
-      }}
-      data-component-id={componentId}
     >
-      {/* Drop indicator silhouette */}
-      {dropIndicator.visible && (
-        <DropIndicator 
-          top={dropIndicator.top - 15}
-          text={dropIndicator.itemName || "Dragged Item"}
-        />
-      )}
+      {/* Header with actions */}
+      <div className="tree-view-header">
+        <span className="title">{title}</span>
+        <div className="actions">
+          {selectedCount > 0 && (
+            <span className="selected-count">{selectedCount} selected</span>
+          )}
+          <button className="select-all-btn" onClick={onSelectAll}>Select All</button>
+          <button className="clear-btn" onClick={onClearSelection}>Clear</button>
+        </div>
+      </div>
       
-      <TreeViewHeader 
-        title={title} 
-        selectedCount={selectedCount} 
-        onSelectAll={onSelectAll} 
-        onClearSelection={onClearSelection} 
-      />
-      
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      {/* Content area */}
+      <div className="tree-view-content">
         {items.length > 0 ? (
           flatView ? (
-            // Flat view - render all leaf nodes regardless of hierarchy
-            renderFlatItems()
-          ) : (
-            // Tree view - render normally with hierarchy
-            items.map((item, idx) => (
-              <TreeItem 
-                key={item.id} 
-                item={item} 
-                onDragStart={onDragStart} 
-                toggleExpand={toggleExpand}
+            // Flat view - only leaf nodes
+            flatItems.map(({ item, groupName, flatIndex }, index) => (
+              <FlatItem
+                key={item.id}
+                item={item}
+                index={index}
+                flatIndex={flatIndex}
+                onDragStart={onDragStart}
                 toggleSelect={toggleSelect}
-                depth={0}
-                index={idx}
                 onDragOver={handleItemDragOver}
                 onDragLeave={handleDragLeave}
+                groupName={groupName}
+                showGroupLabels={showGroupLabels}
+                getSelectedIds={getSelectedIds}
+                source={source}
+              />
+            ))
+          ) : (
+            // Tree view - hierarchical
+            items.map((item, index) => (
+              <TreeItem
+                key={item.id}
+                item={item}
+                depth={0}
+                index={index}
+                onDragStart={onDragStart}
+                toggleExpand={toggleExpand}
+                toggleSelect={toggleSelect}
+                onDragOver={handleItemDragOver}
+                onDragLeave={handleDragLeave}
+                getSelectedIds={getSelectedIds}
+                source={source}
               />
             ))
           )
         ) : (
-          <div style={{ 
-            padding: '15px', 
-            textAlign: 'center', 
-            color: '#999' 
-          }}>
-            Drag columns here
-          </div>
+          <div className="empty-message">Drag columns here</div>
         )}
       </div>
     </div>
   );
 };
 
-export default TreeView;
+export default React.memo(TreeView);

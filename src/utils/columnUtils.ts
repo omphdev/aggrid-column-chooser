@@ -1,11 +1,8 @@
-// src/utils/columnUtils.ts
 import { ColumnDefinition, ColumnItem } from '../types';
 import { ColDef } from 'ag-grid-community';
 
 /**
  * Converts a flat list of columns with groupPath information to a hierarchical tree structure
- * @param columns Flat list of column definitions with groupPath
- * @returns Tree structure of columns for display in TreeView
  */
 export const convertToTreeStructure = (columns: ColumnDefinition[]): ColumnItem[] => {
   const rootItems: ColumnItem[] = [];
@@ -13,7 +10,7 @@ export const convertToTreeStructure = (columns: ColumnDefinition[]): ColumnItem[
   
   // Process each column
   columns.forEach(column => {
-    // For columns with no groupPath or empty groupPath, add directly to root
+    // For columns with no groupPath, add directly to root
     if (!column.groupPath || column.groupPath.length === 0) {
       rootItems.push({
         id: column.id,
@@ -66,7 +63,7 @@ export const convertToTreeStructure = (columns: ColumnDefinition[]): ColumnItem[
     // Add the actual column as a leaf node
     const leafNode: ColumnItem = {
       id: column.id,
-      name: column.groupPath[column.groupPath.length - 1], // Use the last part of the path as name
+      name: column.groupPath[column.groupPath.length - 1],
       field: column.field,
       selected: false
     };
@@ -87,8 +84,6 @@ export const convertToTreeStructure = (columns: ColumnDefinition[]): ColumnItem[
 
 /**
  * Converts a tree structure back to a flat list of columns with groupPath
- * @param treeItems Tree structure of columns
- * @returns Flat list of column definitions with groupPath
  */
 export const convertToFlatColumns = (treeItems: ColumnItem[]): ColumnDefinition[] => {
   const result: ColumnDefinition[] = [];
@@ -97,11 +92,11 @@ export const convertToFlatColumns = (treeItems: ColumnItem[]): ColumnDefinition[
     const currentPath = [...parentPath, item.name];
     
     if (item.field) {
-      // This is a leaf node, add it to the result
+      // This is a leaf node
       result.push({
         id: item.id,
         field: item.field,
-        hide: false, // Default to not hidden
+        hide: false,
         groupPath: currentPath
       });
     }
@@ -118,37 +113,13 @@ export const convertToFlatColumns = (treeItems: ColumnItem[]): ColumnDefinition[
 };
 
 /**
- * Helper function to find all leaf node IDs in a tree structure
- * @param items The tree structure
- * @returns Array of leaf node IDs
- */
-export const getLeafNodeIds = (items: ColumnItem[]): string[] => {
-  const leafIds: string[] = [];
-  
-  const findLeafNodes = (item: ColumnItem) => {
-    if (item.field && (!item.children || item.children.length === 0)) {
-      leafIds.push(item.id);
-    }
-    
-    if (item.children && item.children.length > 0) {
-      item.children.forEach(findLeafNodes);
-    }
-  };
-  
-  items.forEach(findLeafNodes);
-  return leafIds;
-};
-
-/**
  * Flattens a tree structure into a single list of leaf nodes
- * @param items Tree structure of columns
- * @returns Flattened list of leaf nodes
  */
 export const flattenTree = (items: ColumnItem[]): ColumnItem[] => {
   let result: ColumnItem[] = [];
   
   const processItem = (item: ColumnItem) => {
-    // Only add leaf nodes (items with a field property)
+    // Only add leaf nodes
     if (item.field && (!item.children || item.children.length === 0)) {
       result.push(item);
     }
@@ -164,56 +135,35 @@ export const flattenTree = (items: ColumnItem[]): ColumnItem[] => {
 };
 
 /**
+ * Interface for items with parent info in flattened tree
+ */
+export interface FlatItem extends ColumnItem {
+  parentId?: string;
+  index: number;
+}
+
+/**
  * Flattens a tree structure into a list of items with parent information
  * @param items Tree structure
  * @returns Flattened list with parent info
  */
-export interface FlatItem extends ColumnItem {
-  parentId?: string;
-}
-
 export const flattenTreeWithParentInfo = (items: ColumnItem[]): FlatItem[] => {
   const result: FlatItem[] = [];
+  let index = 0;
   
-  const processItem = (item: ColumnItem, parentId?: string) => {
-    // Add this item with parent info
-    const flatItem: FlatItem = { ...item, parentId };
-    result.push(flatItem);
-    
-    // Process children if any
-    if (item.children && item.children.length > 0 && item.expanded !== false) {
-      item.children.forEach(child => processItem(child, item.id));
+  const processItem = (itemList: ColumnItem[], parentId?: string) => {
+    for (const item of itemList) {
+      // Add this item with parent info
+      const flatItem: FlatItem = { ...item, parentId, index: index++ };
+      result.push(flatItem);
+      
+      // Process children if any
+      if (item.children && item.children.length > 0 && item.expanded !== false) {
+        processItem(item.children, item.id);
+      }
     }
   };
   
-  items.forEach(item => processItem(item));
+  processItem(items);
   return result;
-};
-
-/**
- * Convert tree items to AG Grid column definitions
- * @param columns Column tree structure
- * @returns AG Grid column definitions
- */
-export const convertToAgGridColumns = (columns: ColumnItem[]): ColDef[] => {
-  const flattenColumns = (items: ColumnItem[]): ColDef[] => {
-    return items.reduce<ColDef[]>((acc, column) => {
-      if (column.children && column.children.length > 0) {
-        return [...acc, ...flattenColumns(column.children)];
-      }
-      
-      if (column.field) {
-        return [...acc, {
-          field: column.field,
-          headerName: column.name,
-          sortable: true,
-          filter: true
-        }];
-      }
-      
-      return acc;
-    }, []);
-  };
-
-  return flattenColumns(columns);
 };

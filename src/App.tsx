@@ -1,83 +1,107 @@
-// src/App.tsx
-import React, { useState, useCallback } from 'react';
-import { ColumnDefinition } from './types';
+import React, { useEffect } from 'react';
+import { ColumnProvider, useColumnContext } from './contexts/ColumnContext';
 import ColumnChooser from './components/ColumnChooser';
 import MainGrid from './components/MainGrid';
-import DragSilhouette from './components/DragDrop/DragSilhouette';
-import { ColumnProvider } from './contexts/ColumnContext';
+import { initializeDragSilhouette, cleanupDragSilhouette } from './utils/dragUtils';
+import { convertToTreeStructure } from './utils/columnUtils';
+import './App.css';
 
-/**
- * Main application component
- */
-const App: React.FC = () => {
-  // State to store the currently selected columns
-  const [selectedColumns, setSelectedColumns] = useState<ColumnDefinition[]>([]);
+// App content component (using context)
+const AppContent: React.FC = () => {
+  const { initialize } = useColumnContext();
   
-  // Handler for column selection changes
-  const handleSelectedColumnsChange = useCallback((columns: ColumnDefinition[]) => {
-    setSelectedColumns(columns);
-    console.log('Selected columns updated:', columns);
-  }, []);
+  // Initialize on mount
+  useEffect(() => {
+    // Get sample data
+    const columnDefinitions = generateMockColumnDefinitions();
+    const mockData = generateMockData();
+    
+    // Convert column definitions to tree structure
+    const allPossibleColumns = convertToTreeStructure(columnDefinitions);
+    
+    // Initialize the store with data
+    initialize(allPossibleColumns, mockData);
+    
+    // Initialize drag and drop system
+    initializeDragSilhouette();
+    
+    // Clean up on unmount
+    return () => {
+      cleanupDragSilhouette();
+    };
+  }, [initialize]);
   
-  // Get sample data for the provider
-  const { useAllPossibleColumns, useMockData } = require('./data/mockData');
-  const allPossibleColumns = useAllPossibleColumns();
-  const mockData = useMockData();
-
   return (
-    <div style={{ 
-      height: '600px', 
-      display: 'flex', 
-      flexDirection: 'column',
-      padding: '20px'
-    }}>
-      {/* Initialize the drag silhouette system */}
-      <DragSilhouette />
+    <div className="app-layout">
+      {/* Main Grid */}
+      <div className="main-grid-container">
+        <h3>Data Grid</h3>
+        <MainGrid height="calc(100% - 40px)" />
+      </div>
       
-      {/* Wrap everything that needs context in the provider */}
-      <ColumnProvider 
-        allPossibleColumns={allPossibleColumns}
-        initialData={mockData}
-        onSelectedColumnsChange={handleSelectedColumnsChange}
-      >
-        <div style={{
-          display: 'flex',
-          gap: '20px',
-          height: '600px',
-          overflow: 'hidden'
-        }}>
-          {/* Main Grid - takes up more space */}
-          <div style={{ 
-            flex: '3', 
-            display: 'flex', 
-            flexDirection: 'column' 
-          }}>
-            <h3>Data Grid</h3>
-            <MainGrid height="100%" />
-          </div>
-          
-          {/* Column Chooser - takes up less space */}
-          <div style={{ 
-            flex: '1', 
-            display: 'flex', 
-            flexDirection: 'column' 
-          }}>
-            <ColumnChooser 
-              onSelectedColumnsChange={handleSelectedColumnsChange} 
-            />
-          </div>
-        </div>
-      </ColumnProvider>
-      
-      {/* Debug info */}
-      {/* {process.env.NODE_ENV === 'development' && (
-        <div style={{ marginTop: '20px', fontSize: '12px', color: '#999' }}>
-          <h4>Selected Columns</h4>
-          <pre>{JSON.stringify(selectedColumns, null, 2)}</pre>
-        </div>
-      )} */}
+      {/* Column Chooser */}
+      <div className="column-chooser-container">
+        <ColumnChooser />
+      </div>
     </div>
   );
 };
+
+// Main App component (provides context)
+const App: React.FC = () => {
+  return (
+    <div className="app-container">
+      <ColumnProvider>
+        <AppContent />
+      </ColumnProvider>
+    </div>
+  );
+};
+
+// Mock data utilities - renamed to avoid the "use" prefix which is reserved for hooks
+function generateMockColumnDefinitions() {
+  const columns = [];
+  
+  // Generate 100 columns with guaranteed uniqueness
+  for (let i = 1; i <= 100; i++) {
+    columns.push({
+      id: `column_${i}`,
+      field: `column_${i}`,
+      groupPath: [`Group ${Math.ceil(i / 10)}`, `Column ${i}`]
+    });
+  }
+  
+  return columns;
+}
+
+function generateMockData() {
+  // Generate 100 rows
+  return Array.from({ length: 100 }, (_, rowIndex) => {
+    const rowData: Record<string, any> = {};
+    
+    // Generate data for all 100 columns
+    for (let i = 1; i <= 100; i++) {
+      const fieldName = `column_${i}`;
+      
+      // Different data types based on column
+      switch (i % 4) {
+        case 0: // Integer
+          rowData[fieldName] = rowIndex * i;
+          break;
+        case 1: // Float
+          rowData[fieldName] = (rowIndex * i) / 10;
+          break;
+        case 2: // String
+          rowData[fieldName] = `Cell ${i}, Row ${rowIndex + 1}`;
+          break;
+        case 3: // Boolean
+          rowData[fieldName] = rowIndex % 2 === 0;
+          break;
+      }
+    }
+    
+    return rowData;
+  });
+}
 
 export default App;
