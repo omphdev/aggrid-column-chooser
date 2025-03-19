@@ -96,7 +96,6 @@ export const convertToFlatColumns = (treeItems: ColumnItem[]): ColumnDefinition[
       result.push({
         id: item.id,
         field: item.field,
-        hide: false,
         groupPath: currentPath
       });
     }
@@ -113,13 +112,33 @@ export const convertToFlatColumns = (treeItems: ColumnItem[]): ColumnDefinition[
 };
 
 /**
+ * Helper function to find all leaf node IDs in a tree structure
+ */
+export const getLeafNodeIds = (items: ColumnItem[]): string[] => {
+  const leafIds: string[] = [];
+  
+  const findLeafNodes = (item: ColumnItem) => {
+    if (item.field && (!item.children || item.children.length === 0)) {
+      leafIds.push(item.id);
+    }
+    
+    if (item.children && item.children.length > 0) {
+      item.children.forEach(findLeafNodes);
+    }
+  };
+  
+  items.forEach(findLeafNodes);
+  return leafIds;
+};
+
+/**
  * Flattens a tree structure into a single list of leaf nodes
  */
 export const flattenTree = (items: ColumnItem[]): ColumnItem[] => {
   let result: ColumnItem[] = [];
   
   const processItem = (item: ColumnItem) => {
-    // Only add leaf nodes
+    // Only add leaf nodes (items with field property)
     if (item.field && (!item.children || item.children.length === 0)) {
       result.push(item);
     }
@@ -144,8 +163,6 @@ export interface FlatItem extends ColumnItem {
 
 /**
  * Flattens a tree structure into a list of items with parent information
- * @param items Tree structure
- * @returns Flattened list with parent info
  */
 export const flattenTreeWithParentInfo = (items: ColumnItem[]): FlatItem[] => {
   const result: FlatItem[] = [];
@@ -157,7 +174,7 @@ export const flattenTreeWithParentInfo = (items: ColumnItem[]): FlatItem[] => {
       const flatItem: FlatItem = { ...item, parentId, index: index++ };
       result.push(flatItem);
       
-      // Process children if any
+      // Process children if any and if expanded
       if (item.children && item.children.length > 0 && item.expanded !== false) {
         processItem(item.children, item.id);
       }
@@ -165,5 +182,30 @@ export const flattenTreeWithParentInfo = (items: ColumnItem[]): FlatItem[] => {
   };
   
   processItem(items);
+  return result;
+};
+
+/**
+ * Convert columns to AG Grid format
+ */
+export const convertToAgGridColumns = (selectedCols: ColumnItem[]): ColDef[] => {
+  const result: ColDef[] = [];
+  
+  const processItem = (item: ColumnItem) => {
+    if (item.field) {
+      result.push({
+        field: item.field,
+        headerName: item.name,
+        sortable: true,
+        filter: true
+      });
+    }
+    
+    if (item.children && item.children.length > 0) {
+      item.children.forEach(processItem);
+    }
+  };
+  
+  selectedCols.forEach(processItem);
   return result;
 };

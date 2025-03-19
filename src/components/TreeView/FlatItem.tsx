@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { ColumnItem } from '../../types';
-import { handleDragStart } from '../../utils/dragUtils';
+import { handleDragStartForSelected, handleDragStartForAvailable } from '../../utils/dragUtils/operations';
 
 interface FlatItemProps {
   item: ColumnItem;
@@ -36,17 +36,20 @@ const FlatItem: React.FC<FlatItemProps> = ({
     toggleSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
   };
   
-  // Handle drag start with silhouette
+  // Handle drag start
   const handleItemDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
     
-    // Get currently selected IDs
+    // Get the selected IDs
     const selectedIds = getSelectedIds();
     
-    // Use our drag utility
-    handleDragStart(e, item, source, selectedIds);
+    // Use the appropriate function based on source
+    if (source === 'available') {
+      handleDragStartForAvailable(e, item, selectedIds);
+    } else {
+      handleDragStartForSelected(e, item, selectedIds);
+    }
     
-    // Call parent handler
     onDragStart(e, item);
   };
   

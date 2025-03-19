@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { ColumnItem } from '../../types';
-import { handleDragStart, showInsertIndicator } from '../../utils/dragUtils';
+import { handleDragStartForAvailable, handleDragStartForSelected } from '../../utils/dragUtils/operations';
 
 interface TreeItemProps {
   item: ColumnItem;
@@ -35,17 +35,22 @@ const TreeItem: React.FC<TreeItemProps> = ({
     toggleSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
   };
   
-  // Handle drag start with silhouette
+  // Handle drag start
   const handleItemDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
+    console.log('Starting drag from TreeItem', item.id);
     
-    // Get currently selected IDs
+    // Get selected IDs
     const selectedIds = getSelectedIds();
     
-    // Use our drag utility
-    handleDragStart(e, item, source, selectedIds);
+    // Use our refactored handler
+    if (source === 'available') {
+      handleDragStartForAvailable(e, item, selectedIds);
+    } else {
+      handleDragStartForSelected(e, item, selectedIds);
+    }
     
-    // Call parent handler
+    // Call the parent handler
     onDragStart(e, item);
   };
   

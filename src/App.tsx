@@ -5,6 +5,8 @@ import MainGrid from './components/MainGrid';
 import { initializeDragSilhouette, cleanupDragSilhouette } from './utils/dragUtils';
 import { convertToTreeStructure } from './utils/columnUtils';
 import './App.css';
+import { ColumnDefinition } from './types';
+
 
 // App content component (using context)
 const AppContent: React.FC = () => {
@@ -25,9 +27,25 @@ const AppContent: React.FC = () => {
     // Initialize drag and drop system
     initializeDragSilhouette();
     
+    initializeDragSilhouette();
+    
+    console.log('Drag system initialized');
+    
+    // Add debugging listener
+    const handleDragEvents = (e: DragEvent) => {
+      console.log(`Drag event: ${e.type}`);
+    };
+    
+    document.addEventListener('dragstart', handleDragEvents);
+    document.addEventListener('dragover', handleDragEvents);
+    document.addEventListener('drop', handleDragEvents);
+    
     // Clean up on unmount
     return () => {
       cleanupDragSilhouette();
+      document.removeEventListener('dragstart', handleDragEvents);
+      document.removeEventListener('dragover', handleDragEvents);
+      document.removeEventListener('drop', handleDragEvents);
     };
   }, [initialize]);
   
@@ -58,9 +76,9 @@ const App: React.FC = () => {
   );
 };
 
-// Mock data utilities - renamed to avoid the "use" prefix which is reserved for hooks
+// Mock data utilities
 function generateMockColumnDefinitions() {
-  const columns = [];
+  const columns: ColumnDefinition[] = [];
   
   // Generate 100 columns with guaranteed uniqueness
   for (let i = 1; i <= 100; i++) {

@@ -19,14 +19,14 @@ import {
   handleDragStartForAvailable,
   handleDragStartForSelected,
   processDragDrop,
-  insertItemIntoTreeAtIndex,
+  insertItemIntoTreeAtIndex, 
   insertItemIntoFlatList
-} from '../utils/dragDropUtils';
+} from '../utils/dragUtils';
 import { 
   convertToFlatColumns,
   getLeafNodeIds,
   flattenTree
-} from '../utils/columnConverter';
+} from '../utils/columnUtils';
 
 // Export the props interface
 export interface ColumnManagementProps {

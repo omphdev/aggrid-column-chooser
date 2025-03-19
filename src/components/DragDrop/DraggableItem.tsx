@@ -1,7 +1,7 @@
 // DraggableTreeItem.tsx
 import React from 'react';
 import { ColumnItem } from '../../types';
-import { handleDragStart } from '../../utils/dragSilhouette';
+import { createDragSilhouette } from '../../utils/dragUtils/silhouette';
 
 interface DraggableTreeItemProps {
   item: ColumnItem;
@@ -37,7 +37,7 @@ export const DraggableItem: React.FC<DraggableTreeItemProps> = ({
     e.stopPropagation();
     
     // Use the stable silhouette system
-    handleDragStart(e, item.name);
+    createDragSilhouette(e, item.name);
     
     // Call the original handler to handle the data transfer
     onDragStart(e, item);

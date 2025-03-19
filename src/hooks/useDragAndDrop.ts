@@ -4,7 +4,7 @@ import { ColumnItem } from '../types';
 import { 
   handleDragStartForAvailable,
   handleDragStartForSelected
-} from '../utils/dragDropUtils';
+} from '../utils/dragUtils';
 
 /**
  * Hook for managing drag and drop operations
