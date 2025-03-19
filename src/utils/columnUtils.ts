@@ -112,83 +112,9 @@ export const convertToFlatColumns = (treeItems: ColumnItem[]): ColumnDefinition[
 };
 
 /**
- * Helper function to find all leaf node IDs in a tree structure
+ * Generate AG Grid column definitions from a tree of column items
  */
-export const getLeafNodeIds = (items: ColumnItem[]): string[] => {
-  const leafIds: string[] = [];
-  
-  const findLeafNodes = (item: ColumnItem) => {
-    if (item.field && (!item.children || item.children.length === 0)) {
-      leafIds.push(item.id);
-    }
-    
-    if (item.children && item.children.length > 0) {
-      item.children.forEach(findLeafNodes);
-    }
-  };
-  
-  items.forEach(findLeafNodes);
-  return leafIds;
-};
-
-/**
- * Flattens a tree structure into a single list of leaf nodes
- */
-export const flattenTree = (items: ColumnItem[]): ColumnItem[] => {
-  let result: ColumnItem[] = [];
-  
-  const processItem = (item: ColumnItem) => {
-    // Only add leaf nodes (items with field property)
-    if (item.field && (!item.children || item.children.length === 0)) {
-      result.push(item);
-    }
-    
-    // Process children if any
-    if (item.children && item.children.length > 0) {
-      item.children.forEach(processItem);
-    }
-  };
-  
-  items.forEach(processItem);
-  return result;
-};
-
-/**
- * Interface for items with parent info in flattened tree
- */
-export interface FlatItem extends ColumnItem {
-  parentId?: string;
-  index: number;
-}
-
-/**
- * Flattens a tree structure into a list of items with parent information
- */
-export const flattenTreeWithParentInfo = (items: ColumnItem[]): FlatItem[] => {
-  const result: FlatItem[] = [];
-  let index = 0;
-  
-  const processItem = (itemList: ColumnItem[], parentId?: string) => {
-    for (const item of itemList) {
-      // Add this item with parent info
-      const flatItem: FlatItem = { ...item, parentId, index: index++ };
-      result.push(flatItem);
-      
-      // Process children if any and if expanded
-      if (item.children && item.children.length > 0 && item.expanded !== false) {
-        processItem(item.children, item.id);
-      }
-    }
-  };
-  
-  processItem(items);
-  return result;
-};
-
-/**
- * Convert columns to AG Grid format
- */
-export const convertToAgGridColumns = (selectedCols: ColumnItem[]): ColDef[] => {
+export function generateGridColumns(items: ColumnItem[]): ColDef[] {
   const result: ColDef[] = [];
   
   const processItem = (item: ColumnItem) => {
@@ -206,9 +132,9 @@ export const convertToAgGridColumns = (selectedCols: ColumnItem[]): ColDef[] => 
     }
   };
   
-  selectedCols.forEach(processItem);
+  items.forEach(processItem);
   return result;
-};
+}
 
 /**
  * Count only leaf nodes in a tree (items with fields)
@@ -286,4 +212,99 @@ export function filterEmptyGroups(items: ColumnItem[]): ColumnItem[] {
     
     return filteredItems;
   }, []);
+}
+
+/**
+ * Find an item in a tree by ID
+ */
+export function findItemInTree(items: ColumnItem[], itemId: string): ColumnItem | null {
+  for (const item of items) {
+    if (item.id === itemId) {
+      return item;
+    }
+    
+    if (item.children) {
+      const found = findItemInTree(item.children, itemId);
+      if (found) return found;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Remove an item from a tree by ID
+ */
+export function removeItemFromTree(items: ColumnItem[], itemId: string): ColumnItem[] {
+  // First filter out the item at this level
+  const result = items.filter(item => item.id !== itemId);
+  
+  // Then process children recursively
+  const processedResult = result.map(item => {
+    if (item.children && item.children.length > 0) {
+      return {
+        ...item,
+        children: removeItemFromTree(item.children, itemId)
+      };
+    }
+    return item;
+  });
+  
+  // Filter out empty groups
+  return processedResult.filter(item => 
+    !item.children || item.children.length > 0 || item.field
+  );
+}
+
+/**
+ * Deep clone a column item
+ */
+export function deepCloneItem(item: ColumnItem): ColumnItem {
+  return {
+    ...item,
+    children: item.children ? item.children.map(deepCloneItem) : undefined,
+    selected: false // Reset selection state when cloning
+  };
+}
+
+/**
+ * Update available columns by removing items that are in selected columns
+ * This ensures that items don't appear in both panels
+ */
+export function removeSelectedFromAvailable(
+  availableColumns: ColumnItem[],
+  selectedColumnIds: string[]
+): ColumnItem[] {
+  // Create a set for faster lookups
+  const selectedIdSet = new Set(selectedColumnIds);
+  
+  // Helper function to recursively filter out selected items
+  const filterSelectedItems = (items: ColumnItem[]): ColumnItem[] => {
+    return items.reduce<ColumnItem[]>((filteredItems, item) => {
+      // If this item is in the selected set, skip it
+      if (selectedIdSet.has(item.id) && item.field) {
+        return filteredItems;
+      }
+      
+      // If it's a group, process its children
+      if (item.children && item.children.length > 0) {
+        const filteredChildren = filterSelectedItems(item.children);
+        
+        // Only include this group if it has non-empty children after filtering
+        if (filteredChildren.length > 0) {
+          filteredItems.push({
+            ...item,
+            children: filteredChildren
+          });
+        }
+      } else {
+        // It's a leaf node not in selected, include it
+        filteredItems.push({ ...item });
+      }
+      
+      return filteredItems;
+    }, []);
+  };
+  
+  return filterSelectedItems(availableColumns);
 }

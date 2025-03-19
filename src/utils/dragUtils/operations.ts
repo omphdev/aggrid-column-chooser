@@ -58,174 +58,57 @@ function handleDragStart(
 }
 
 /**
- * Handle drag start for available columns panel
- * @param e Drag event
- * @param item Item being dragged
- * @param availableItems Either array of selected IDs or all available items 
+ * Handle drag start for available columns panel - can be used with selectedIds or empty array
  */
 export function handleDragStartForAvailable(
   e: React.DragEvent, 
   item: ColumnItem,
-  availableItems: string[] | ColumnItem[]
+  dragIds: string[]
 ) {
-  // Extract IDs
-  const selectedIds = getSelectedIds(availableItems);
+  // Find all selected elements in the available panel
+  const selectedElements = document.querySelectorAll('.tree-view [data-source="available"] .selected');
+  const selectedItemIds: string[] = [];
   
-  // Use the selected IDs if item is selected, or just this item's ID
-  const ids = item.selected && selectedIds.length > 0 ? selectedIds : [item.id];
+  // Only collect IDs if this item is one of the selected items
+  if (dragIds.length === 0) {
+    // This means item is selected along with others
+    selectedElements.forEach(el => {
+      const itemId = el.getAttribute('data-item-id');
+      if (itemId) selectedItemIds.push(itemId);
+    });
+  }
+  
+  // Use collected selected IDs or just this item's ID
+  const ids = selectedItemIds.length > 0 ? selectedItemIds : [item.id];
+  
   handleDragStart(e, item, 'available', ids);
 }
 
 /**
- * Handle drag start for selected columns panel
- * @param e Drag event
- * @param item Item being dragged
- * @param selectedItems Either array of selected IDs or all selected items
+ * Handle drag start for selected columns panel - can be used with selectedIds or empty array
  */
 export function handleDragStartForSelected(
   e: React.DragEvent, 
   item: ColumnItem,
-  selectedItems: string[] | ColumnItem[]
+  dragIds: string[]
 ) {
-  // Extract IDs
-  const selectedIds = getSelectedIds(selectedItems);
+  // Find all selected elements in the selected panel
+  const selectedElements = document.querySelectorAll('.tree-view [data-source="selected"] .selected');
+  const selectedItemIds: string[] = [];
   
-  // Use the selected IDs if item is selected, or just this item's ID
-  const ids = item.selected && selectedIds.length > 0 ? selectedIds : [item.id];
+  // Only collect IDs if this item is one of the selected items
+  if (dragIds.length === 0) {
+    // This means item is selected along with others
+    selectedElements.forEach(el => {
+      const itemId = el.getAttribute('data-item-id');
+      if (itemId) selectedItemIds.push(itemId);
+    });
+  }
+  
+  // Use collected selected IDs or just this item's ID
+  const ids = selectedItemIds.length > 0 ? selectedItemIds : [item.id];
+  
   handleDragStart(e, item, 'selected', ids);
-}
-
-/**
- * Get selected items from a tree structure
- */
-export function getSelectedItems(items: ColumnItem[]): string[] {
-  const selectedIds: string[] = [];
-  
-  const collectSelectedIds = (itemList: ColumnItem[]) => {
-    for (const item of itemList) {
-      if (item.selected) {
-        selectedIds.push(item.id);
-      }
-      
-      if (item.children && item.children.length > 0) {
-        collectSelectedIds(item.children);
-      }
-    }
-  };
-  
-  collectSelectedIds(items);
-  return selectedIds;
-}
-
-/**
- * Process drag and drop operations
- */
-export function processDragDrop(
-  e: React.DragEvent,
-  sourcePanel: string,
-  availableColumns: ColumnItem[],
-  selectedColumns: ColumnItem[],
-  allPossibleColumns: ColumnItem[],
-  clearSelectionFunction: () => void,
-  isFlatView: boolean = false
-): { 
-  newAvailable: ColumnItem[], 
-  newSelected: ColumnItem[] 
-} {
-  e.preventDefault();
-  
-  try {
-    const data = JSON.parse(e.dataTransfer.getData('text/plain')) as { 
-      ids: string[], 
-      source: string 
-    };
-    
-    if (data.source === sourcePanel && data.ids && data.ids.length > 0) {
-      // Implementation would go here
-      // For now returning unmodified copies to satisfy type requirements
-      return { 
-        newAvailable: [...availableColumns], 
-        newSelected: [...selectedColumns] 
-      };
-    }
-  } catch (err) {
-    console.error('Error processing drag data:', err);
-  }
-  
-  return { 
-    newAvailable: [...availableColumns], 
-    newSelected: [...selectedColumns] 
-  };
-}
-
-/**
- * Insert item into tree at specific index
- */
-export function insertItemIntoTreeAtIndex(
-  items: ColumnItem[],
-  item: ColumnItem,
-  allPossibleColumns: ColumnItem[],
-  targetId?: string,
-  insertBefore: boolean = true
-): ColumnItem[] {
-  // Clone to avoid mutation
-  const result = [...items];
-  
-  if (targetId) {
-    const targetIndex = result.findIndex(i => i.id === targetId);
-    if (targetIndex >= 0) {
-      const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-      
-      // Make sure we don't already have this item
-      if (!result.some(i => i.id === item.id)) {
-        result.splice(insertIndex, 0, item);
-      }
-      
-      return result;
-    }
-  }
-  
-  // Add to end if target not found
-  if (!result.some(i => i.id === item.id)) {
-    result.push(item);
-  }
-  
-  return result;
-}
-
-/**
- * Insert item into flat list
- */
-export function insertItemIntoFlatList(
-  tree: ColumnItem[],
-  item: ColumnItem,
-  allPossibleColumns: ColumnItem[],
-  targetId?: string,
-  insertBefore: boolean = true
-): ColumnItem[] {
-  // Clone to avoid mutation
-  const result = [...tree];
-  
-  if (targetId) {
-    const targetIndex = result.findIndex(i => i.id === targetId);
-    if (targetIndex >= 0) {
-      const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-      
-      // Make sure we don't already have this item
-      if (!result.some(i => i.id === item.id)) {
-        result.splice(insertIndex, 0, item);
-      }
-      
-      return result;
-    }
-  }
-  
-  // Add to end if target not found
-  if (!result.some(i => i.id === item.id)) {
-    result.push(item);
-  }
-  
-  return result;
 }
 
 /**
@@ -240,9 +123,6 @@ export function parseDragData(e: React.DragEvent): { ids: string[], source: stri
   }
 }
 
-/**
- * Find drop position from event and element
- */
 /**
  * Find drop position from event and element
  */
@@ -279,12 +159,18 @@ export function findDropPosition(
   return { targetId, insertBefore };
 }
 
+/**
+ * Clear drop position indicators
+ */
 export function clearDropPositionIndicators() {
   document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(element => {
     element.classList.remove('drag-over-top', 'drag-over-bottom');
   });
 }
 
+/**
+ * Enhanced drop handling with position information
+ */
 export function enhanceDropHandling(handleDrop: (e: React.DragEvent) => void) {
   return (e: React.DragEvent) => {
     // Clear visual indicators before processing drop
@@ -293,32 +179,4 @@ export function enhanceDropHandling(handleDrop: (e: React.DragEvent) => void) {
     // Call original handler
     handleDrop(e);
   };
-}
-
-/**
-  * Get selected IDs from a tree structure or array of IDs
- */
-export function getSelectedIds(items: ColumnItem[] | string[]): string[] {
-  // If already a string array, return it directly
-  if (items.length > 0 && typeof items[0] === 'string') {
-    return items as string[];
-  }
-  
-  // Otherwise extract IDs from column items
-  const selectedIds: string[] = [];
-  
-  const collectSelectedIds = (itemList: ColumnItem[]) => {
-    for (const item of itemList) {
-      if (item.selected) {
-        selectedIds.push(item.id);
-      }
-      
-      if (item.children && item.children.length > 0) {
-        collectSelectedIds(item.children);
-      }
-    }
-  };
-  
-  collectSelectedIds(items as ColumnItem[]);
-  return selectedIds;
 }

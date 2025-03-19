@@ -8,10 +8,10 @@ export interface ColumnDefinition {
 export interface ColumnItem {
   id: string;
   name: string;
-  field: string;
+  field?: string;       // Optional field name (may be empty for groups)
   children?: ColumnItem[];
-  expanded?: boolean;
-  selected?: boolean;
+  expanded?: boolean;   // Whether a group is expanded
+  selected?: boolean;   // Whether the item is selected
 }
 
 export interface DragItem {
@@ -48,4 +48,17 @@ export interface PositionedDragEvent extends React.DragEvent<HTMLElement> {
     targetId?: string;
     insertBefore: boolean;
   }
+}
+
+// State tracking for tree views
+export interface TreeViewUIState {
+  expandedIds: Set<string>;
+  dragOverItemId: string | null;
+  isDraggedOver: boolean;
+  insertBefore: boolean;
+}
+
+export interface SelectionState {
+  selectedIds: Set<string>;
+  lastSelectedId: string | null;
 }

@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { parseDragData } from '../../../utils/dragUtils/operations';
-import { showInsertIndicator, hideAll } from '../../../utils/dragUtils/silhouette';
+import { hideAll } from '../../../utils/dragUtils/silhouette';
 
 export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
   const [activeDropTarget, setActiveDropTarget] = useState<string | null>(null);
@@ -32,18 +31,26 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
   ) => {
     if (!element) return;
     
-    // Critical: Prevent default to enable drop
+    // Prevent default to enable drop
     e.preventDefault();
     e.stopPropagation();
     
-    // Check if we should allow the drop
-    const dragData = parseDragData(e);
-    if (!dragData) return;
-    
-    // Don't show indicator if dragging onto itself
-    if (dragData.ids.length === 1 && dragData.ids[0] === itemId) {
-      clearDropIndicators();
-      return;
+    // Try getting the drag data (for Firefox compatibility)
+    let dragData;
+    try {
+      const dataText = e.dataTransfer.getData('text/plain');
+      if (dataText) {
+        dragData = JSON.parse(dataText);
+        
+        // Don't show indicator if dragging onto itself
+        if (dragData.ids.length === 1 && dragData.ids[0] === itemId) {
+          clearDropIndicators();
+          setActiveDropTarget(null);
+          return;
+        }
+      }
+    } catch (err) {
+      // Continue even if we can't get data - some browsers don't allow reading data during dragover
     }
     
     // Clear previous indicators
@@ -83,7 +90,7 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
   
   // Handle container drag over (empty areas)
   const handleContainerDragOver = useCallback((e: React.DragEvent) => {
-    // Critical: Prevent default to enable drop
+    // Prevent default to enable drop
     e.preventDefault();
     e.stopPropagation();
     
@@ -103,7 +110,7 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
     }
   }, [clearDropIndicators]);
   
-  // Handle drop with position information
+  // Handle drop
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -112,7 +119,25 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
     
     // Create enhanced event with drop position
     const enhancedEvent = e as any;
+    let dragData;
     
+    // Try to get the drag data
+    try {
+      const dataText = e.dataTransfer.getData('text/plain');
+      if (!dataText) {
+        console.error('No drag data available');
+        clearDropIndicators();
+        return;
+      }
+      
+      dragData = JSON.parse(dataText);
+    } catch (err) {
+      console.error('Invalid drag data:', err);
+      clearDropIndicators();
+      return;
+    }
+    
+    // Set the drop position
     if (activeDropTarget) {
       // If we have an active target, use it with our insert position
       enhancedEvent.dropPosition = {

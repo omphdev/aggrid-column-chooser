@@ -1,18 +1,17 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { ColumnItem } from '../../types';
-import { handleDragStartForSelected, handleDragStartForAvailable } from '../../utils/dragUtils/operations';
 
 interface FlatItemProps {
   item: ColumnItem;
   index: number;
   flatIndex?: number;
+  isSelected: boolean;
   onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
-  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
+  onSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
   onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void;
   onDragLeave?: () => void;
   groupName?: string;
   showGroupLabels?: boolean;
-  getSelectedIds: () => string[];
   source: 'available' | 'selected';
   onDoubleClick?: (item: ColumnItem) => void;
   enableReordering?: boolean;
@@ -22,13 +21,13 @@ const FlatItem: React.FC<FlatItemProps> = ({
   item,
   index,
   flatIndex,
+  isSelected,
   onDragStart,
-  toggleSelect,
+  onSelect,
   onDragOver,
   onDragLeave,
   groupName,
   showGroupLabels = false,
-  getSelectedIds,
   source,
   onDoubleClick,
   enableReordering = false
@@ -37,7 +36,7 @@ const FlatItem: React.FC<FlatItemProps> = ({
   
   // Handle click for selection
   const handleClick = (e: React.MouseEvent) => {
-    toggleSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
+    onSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
   };
   
   // Handle double click to move item
@@ -48,36 +47,10 @@ const FlatItem: React.FC<FlatItemProps> = ({
     }
   };
   
-  // Handle drag start
+  // Handle drag start - simplified to just pass to parent
   const handleItemDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
-    
-    // Add dragging class to element
-    if (itemRef.current) {
-      itemRef.current.classList.add('dragging');
-    }
-    
-    // Get the selected IDs as a string array
-    const selectedIds = getSelectedIds();
-    
-    // Use the appropriate function based on source
-    if (source === 'available') {
-      handleDragStartForAvailable(e, item, selectedIds);
-    } else {
-      handleDragStartForSelected(e, item, selectedIds);
-    }
-    
     onDragStart(e, item);
-    
-    // Clean up dragging class on drag end
-    const handleDragEnd = () => {
-      if (itemRef.current) {
-        itemRef.current.classList.remove('dragging');
-      }
-      document.removeEventListener('dragend', handleDragEnd);
-    };
-    
-    document.addEventListener('dragend', handleDragEnd);
   };
   
   // Handle dragover
@@ -93,7 +66,7 @@ const FlatItem: React.FC<FlatItemProps> = ({
   // Determine CSS classes
   const itemClasses = [
     'flat-item',
-    item.selected ? 'selected' : '',
+    isSelected ? 'selected' : '',
     enableReordering ? 'reorderable' : '',
   ].filter(Boolean).join(' ');
   

@@ -1,72 +1,83 @@
 import React from 'react';
-import { useColumnContext } from '../../contexts/ColumnContext';
+import { ColumnItem } from '../../types';
 import TreeView from '../TreeView';
-import { countLeafNodes } from '../../utils/columnUtils';
 import './SelectedColumns.css';
 
 interface SelectedColumnsProps {
+  columns: ColumnItem[];
+  selectedIds: string[];
+  leafCount: number;
+  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
+  selectAll: () => void;
+  clearSelection: () => void;
+  getSelectedCount: () => number;
+  moveItemsToAvailable: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
+  reorderItems: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
+  moveSelectedUp: () => void;
+  moveSelectedDown: () => void;
+  clearSelected: () => void;
+  onDoubleClick: (id: string) => void;
+  moveItemsToSelected?: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
   title?: string;
-  flatView?: boolean;
   showGroupLabels?: boolean;
 }
 
 const SelectedColumns: React.FC<SelectedColumnsProps> = ({
+  columns,
+  selectedIds,
+  leafCount,
+  toggleSelect,
+  selectAll,
+  clearSelection,
+  getSelectedCount,
+  moveItemsToAvailable,
+  reorderItems,
+  moveSelectedUp,
+  moveSelectedDown,
+  clearSelected,
+  onDoubleClick,
+  moveItemsToSelected,
   title = "Selected Columns",
   showGroupLabels = true
 }) => {
-  const {
-    state,
-    toggleExpandSelected,
-    toggleSelectSelected,
-    selectAllSelected,
-    clearSelectionSelected,
-    moveItemsToSelected,
-    reorderSelectedItems,
-    getSelectedCount,
-    moveSelectedUp,
-    moveSelectedDown,
-    clearSelected,
-    moveItemToAvailable
-  } = useColumnContext();
-  
-  // Get columns from state
-  const { selectedColumns } = state;
-  
-  // Get the selected count
-  const selectedCount = getSelectedCount('selected');
-  
-  // Get leaf node count
-  const leafNodeCount = countLeafNodes(selectedColumns);
-  
   // Always use flat view for selected columns
   const useFlatView = true;
   
-  // Handle drag start
-  const handleDragStart = (e: React.DragEvent, item: any) => {
-    // Drag handling is done in TreeView component
-    console.log(`Drag start in selected columns: ${item.id}`);
+  // Handle drag start - TreeView will handle the details
+  const handleDragStart = (e: React.DragEvent, item: ColumnItem) => {
+    console.log('Drag start in SelectedColumns for item:', item.id);
   };
   
-  // Handle drop for reordering columns
+  // Handle drop - process drops from both panels
   const handleDrop = (e: React.DragEvent) => {
-    // Get the drag data from the event
+    e.preventDefault();
+    
     try {
-      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+      // Get the drag data
+      const dataText = e.dataTransfer.getData('text/plain');
+      if (!dataText) {
+        console.error('No drag data found');
+        return;
+      }
       
-      // Get drop position from the enhanced event
+      const data = JSON.parse(dataText);
+      console.log('Drop in selected columns:', data);
+      
+      // Get drop position from the event
       const positionedEvent = e as any;
       const dropPosition = positionedEvent.dropPosition || { insertBefore: true };
       
       if (data.source === 'available' && data.ids && data.ids.length > 0) {
-        // Move items from available to selected
-        console.log('Moving items from available to selected');
-        moveItemsToSelected(data.ids, dropPosition);
+        // Items coming from available panel
+        console.log('Moving items from available to selected:', data.ids);
+        
+        if (moveItemsToSelected) {
+          moveItemsToSelected(data.ids, dropPosition);
+        }
       } else if (data.source === 'selected' && data.ids && data.ids.length > 0) {
-        // Reorder within the selected panel
-        console.log('Reordering items within selected panel');
-        console.log('Items to reorder:', data.ids);
-        console.log('Drop position:', dropPosition);
-        reorderSelectedItems(data.ids, dropPosition);
+        // Reordering within selected panel
+        console.log('Reordering within selected panel:', data.ids);
+        reorderItems(data.ids, dropPosition);
       }
     } catch (err) {
       console.error('Error processing drop:', err);
@@ -74,8 +85,8 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
   };
   
   // Handle double-click on an item
-  const handleDoubleClick = (item: any) => {
-    moveItemToAvailable(item.id);
+  const handleDoubleClick = (item: ColumnItem) => {
+    onDoubleClick(item.id);
   };
   
   // Custom header with action buttons
@@ -84,24 +95,24 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
       <div className="header-title">
         <h3>{title}</h3>
         <div className="column-stats">
-          <span className="column-count">{leafNodeCount} columns</span>
-          {selectedCount > 0 && (
-            <span className="selected-count">{selectedCount} selected</span>
+          <span className="column-count">{leafCount} columns</span>
+          {getSelectedCount() > 0 && (
+            <span className="selected-count">{getSelectedCount()} selected</span>
           )}
         </div>
       </div>
       
       <div className="header-actions">
         <div className="selection-actions">
-          <button className="action-button" onClick={selectAllSelected}>Select All</button>
-          <button className="action-button" onClick={clearSelectionSelected}>Clear Selection</button>
+          <button className="action-button" onClick={selectAll}>Select All</button>
+          <button className="action-button" onClick={clearSelection}>Clear Selection</button>
         </div>
         
         <div className="column-actions">
           <button 
             className="action-button move-up-btn" 
             onClick={moveSelectedUp}
-            disabled={selectedCount === 0}
+            disabled={getSelectedCount() === 0}
             title="Move selected row(s) up"
           >
             <span>↑</span>
@@ -109,7 +120,7 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
           <button 
             className="action-button move-down-btn" 
             onClick={moveSelectedDown}
-            disabled={selectedCount === 0}
+            disabled={getSelectedCount() === 0}
             title="Move selected row(s) down"
           >
             <span>↓</span>
@@ -117,7 +128,7 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
           <button 
             className="action-button clear-btn" 
             onClick={clearSelected}
-            disabled={selectedColumns.length === 0}
+            disabled={columns.length === 0}
             title="Clear all selected columns"
           >
             <span>Clear All</span>
@@ -133,15 +144,17 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
       
       <div className="selected-columns-content">
         <TreeView
-          items={selectedColumns}
+          items={columns}
+          selectedIds={selectedIds}
           title=""
           onDragStart={handleDragStart}
           onDrop={handleDrop}
-          toggleExpand={toggleExpandSelected}
-          toggleSelect={toggleSelectSelected}
-          onSelectAll={selectAllSelected}
-          onClearSelection={clearSelectionSelected}
-          selectedCount={selectedCount}
+          toggleExpand={() => {}} // Not needed for flat view
+          toggleSelect={toggleSelect}
+          onSelectAll={selectAll}
+          onClearSelection={clearSelection}
+          selectedCount={getSelectedCount()}
+          totalCount={leafCount}
           flatView={useFlatView}
           showGroupLabels={showGroupLabels}
           source="selected"

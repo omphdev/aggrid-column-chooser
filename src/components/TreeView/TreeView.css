@@ -85,6 +85,16 @@
   transition: background-color 0.2s ease, margin 0.15s ease-out;
 }
 
+/* Enhanced styling for selected items */
+.tree-item.selected,
+.flat-item.selected {
+  background-color: #e6f7ff !important;
+  color: #1890ff !important;
+  font-weight: 500 !important;
+  border-left: 3px solid #1890ff !important;
+  box-shadow: 0 0 0 1px rgba(24, 144, 255, 0.1) !important;
+}
+
 /* Style for group items */
 .tree-item.has-children {
   background-color: #f5f5f5;
@@ -108,6 +118,12 @@
   border-left-color: #1890ff;
 }
 
+/* Selected group item */
+.tree-item.has-children.selected {
+  background-color: #e6f7ff !important;
+  border-left: 3px solid #1890ff !important;
+}
+
 /* Group count badge */
 .group-count {
   font-size: 11px;
@@ -116,24 +132,17 @@
   opacity: 0.8;
 }
 
-.tree-item.selected,
-.flat-item.selected {
-  background-color: #e6f7ff;
-  color: #1890ff;
-  font-weight: 500;
-}
-
 .tree-item:hover,
 .flat-item:hover {
   background-color: #f9f9f9;
 }
 
-.tree-item[data-dragging="true"],
-.flat-item[data-dragging="true"],
-.tree-item[data-being-dragged="true"],
-.flat-item[data-being-dragged="true"] {
+/* Drag styles */
+.tree-item.dragging,
+.flat-item.dragging {
   opacity: 0.6;
   background-color: #f0f0f0;
+  border: 1px dashed #1890ff;
 }
 
 .expand-button {
@@ -233,8 +242,6 @@
   background-color: #1890ff !important;
   box-shadow: 0 0 8px rgba(24, 144, 255, 0.8) !important;
 }
-
-/* Add these styles to src/components/TreeView/TreeView.css */
 
 /* Styles for reorderable items */
 .reorderable {

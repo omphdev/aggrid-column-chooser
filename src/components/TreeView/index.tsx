@@ -1,13 +1,14 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { ColumnItem } from '../../types';
 import TreeItem from './TreeItem';
 import FlatItem from './FlatItem';
 import { useTreeDragDrop } from './hooks/useTreeDragDrop';
-import { countLeafNodes, countSelectedLeafNodes } from '../../utils/columnUtils';
+import { countLeafNodes } from '../../utils/columnUtils';
 import './TreeView.css';
 
 interface TreeViewProps {
   items: ColumnItem[];
+  selectedIds: string[];
   title: string;
   onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
   onDrop: (e: React.DragEvent) => void;
@@ -16,17 +17,19 @@ interface TreeViewProps {
   onSelectAll: () => void;
   onClearSelection: () => void;
   selectedCount: number;
+  totalCount: number;
   flatView?: boolean;
   showGroupLabels?: boolean;
   source: 'available' | 'selected';
   hideHeader?: boolean;
   onDoubleClick?: (item: ColumnItem) => void;
   countChildren?: boolean;
-  enableReordering?: boolean; // New prop for enabling reordering
+  enableReordering?: boolean;
 }
 
 const TreeView: React.FC<TreeViewProps> = ({
   items,
+  selectedIds,
   title,
   onDragStart,
   onDrop,
@@ -35,42 +38,86 @@ const TreeView: React.FC<TreeViewProps> = ({
   onSelectAll,
   onClearSelection,
   selectedCount,
+  totalCount,
   flatView = false,
   showGroupLabels = false,
   source,
   hideHeader = false,
   onDoubleClick,
   countChildren = true,
-  enableReordering = false // Default to false
+  enableReordering = false
 }) => {
-  // Get all selected IDs for drag operations
-  const getSelectedIds = useCallback(() => {
-    const result: string[] = [];
-    
-    const collectSelectedIds = (itemList: ColumnItem[]) => {
-      for (const item of itemList) {
-        if (item.selected) {
-          result.push(item.id);
-        }
-        
-        if (item.children && item.children.length > 0) {
-          collectSelectedIds(item.children);
-        }
-      }
-    };
-    
-    collectSelectedIds(items);
-    return result;
-  }, [items]);
+  // Keep a reference to the selected IDs for use in drag events
+  const selectedIdsRef = useRef(selectedIds);
+  React.useEffect(() => {
+    selectedIdsRef.current = selectedIds;
+  }, [selectedIds]);
   
   // Use custom hook for drag and drop functionality
   const {
-    activeDropTarget,
     handleItemDragOver,
     handleDragLeave,
     handleContainerDragOver,
-    handleDrop
+    handleDrop: handleEnhancedDrop
   } = useTreeDragDrop(onDrop);
+  
+  // Handle drag start for any item (tree or flat)
+  const handleDragStart = useCallback((e: React.DragEvent, item: ColumnItem) => {
+    console.log(`Drag start in ${source} panel for item:`, item.id);
+    console.log('Currently selected IDs:', selectedIdsRef.current);
+    
+    // Determine which items to include in the drag
+    let dragIds: string[] = [];
+    
+    // If the item being dragged is in the selection, include all selected items
+    if (selectedIdsRef.current.includes(item.id)) {
+      dragIds = [...selectedIdsRef.current];
+      console.log(`Item ${item.id} is part of multiselection, dragging all ${dragIds.length} selected items`);
+    } else {
+      // Otherwise, just include this one item
+      dragIds = [item.id];
+      console.log(`Item ${item.id} is not part of multiselection, dragging single item`);
+    }
+    
+    // Set drag data
+    const dragText = dragIds.length > 1 ? `${dragIds.length} columns` : item.name;
+    
+    // Set the drag data directly with all needed information
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      ids: dragIds,
+      source,
+      itemName: dragText
+    }));
+    
+    // Add "being dragged" visual effect to all selected items
+    if (dragIds.length > 1) {
+      // Apply visual effect to all selected items
+      document.querySelectorAll(`.tree-view[data-source="${source}"] .selected`).forEach(el => {
+        el.classList.add('dragging');
+      });
+    }
+    
+    // Call the parent's drag handler
+    onDragStart(e, item);
+    
+    // Clean up on drag end
+    const handleDragEnd = () => {
+      // Remove dragging class from all elements
+      document.querySelectorAll('.dragging').forEach(el => {
+        el.classList.remove('dragging');
+      });
+      
+      document.removeEventListener('dragend', handleDragEnd);
+    };
+    
+    document.addEventListener('dragend', handleDragEnd);
+  }, [onDragStart, source]);
+  
+  // Check if an item is selected
+  const isItemSelected = useCallback((id: string) => {
+    return selectedIds.includes(id);
+  }, [selectedIds]);
   
   // Generate flat items for flat view mode
   const flatItems = useMemo(() => {
@@ -99,30 +146,32 @@ const TreeView: React.FC<TreeViewProps> = ({
     items.forEach(item => processItem(item));
     return result;
   }, [items, flatView]);
-
-  // Count leaf nodes (excluding groups)
-  const leafNodeCount = useMemo(() => countLeafNodes(items), [items]);
   
-  // Count selected leaf nodes
-  const selectedLeafCount = useMemo(() => countSelectedLeafNodes(items), [items]);
+  // Handle double-click
+  const handleItemDoubleClick = useCallback((item: ColumnItem) => {
+    if (onDoubleClick) {
+      onDoubleClick(item);
+    }
+  }, [onDoubleClick]);
   
   return (
     <div 
       className="tree-view"
       onDragOver={handleContainerDragOver}
-      onDrop={handleDrop}
+      onDrop={handleEnhancedDrop}
       onDragLeave={handleDragLeave}
+      data-source={source}
     >
       {/* Header with actions - only show if not hidden */}
       {!hideHeader && (
         <div className="tree-view-header">
           <div className="header-left">
             <span className="title">{title}</span>
-            <span className="column-count">{leafNodeCount} columns</span>
+            <span className="column-count">{totalCount} columns</span>
           </div>
           <div className="actions">
             {selectedCount > 0 && (
-              <span className="selected-count">{selectedLeafCount} selected</span>
+              <span className="selected-count">{selectedCount} selected</span>
             )}
             <button className="select-all-btn" onClick={onSelectAll}>Select All</button>
             <button className="clear-btn" onClick={onClearSelection}>Clear</button>
@@ -141,15 +190,15 @@ const TreeView: React.FC<TreeViewProps> = ({
                 item={item}
                 index={index}
                 flatIndex={flatIndex}
-                onDragStart={onDragStart}
-                toggleSelect={toggleSelect}
+                isSelected={isItemSelected(item.id)}
+                onDragStart={handleDragStart}
+                onSelect={toggleSelect}
                 onDragOver={handleItemDragOver}
                 onDragLeave={handleDragLeave}
                 groupName={groupName}
                 showGroupLabels={showGroupLabels}
-                getSelectedIds={getSelectedIds}
                 source={source}
-                onDoubleClick={onDoubleClick}
+                onDoubleClick={handleItemDoubleClick}
                 enableReordering={enableReordering}
               />
             ))
@@ -161,14 +210,14 @@ const TreeView: React.FC<TreeViewProps> = ({
                 item={item}
                 depth={0}
                 index={index}
-                onDragStart={onDragStart}
-                toggleExpand={toggleExpand}
-                toggleSelect={toggleSelect}
+                isSelected={isItemSelected(item.id)}
+                onDragStart={handleDragStart}
+                onExpand={toggleExpand}
+                onSelect={toggleSelect}
                 onDragOver={handleItemDragOver}
                 onDragLeave={handleDragLeave}
-                getSelectedIds={getSelectedIds}
                 source={source}
-                onDoubleClick={onDoubleClick}
+                onDoubleClick={handleItemDoubleClick}
                 countChildren={countChildren}
                 enableReordering={enableReordering}
               />

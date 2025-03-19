@@ -1,18 +1,17 @@
 import React, { useRef, useEffect } from 'react';
 import { ColumnItem } from '../../types';
-import { handleDragStartForAvailable, handleDragStartForSelected } from '../../utils/dragUtils/operations';
 import { countLeafNodes } from '../../utils/columnUtils';
 
 interface TreeItemProps {
   item: ColumnItem;
   depth: number;
   index: number;
+  isSelected: boolean;
   onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
-  toggleExpand: (id: string) => void;
-  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
+  onExpand: (id: string) => void;
+  onSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
   onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void;
   onDragLeave?: () => void;
-  getSelectedIds: () => string[];
   source: 'available' | 'selected';
   onDoubleClick?: (item: ColumnItem) => void;
   countChildren?: boolean;
@@ -23,12 +22,12 @@ const TreeItem: React.FC<TreeItemProps> = ({
   item,
   depth,
   index,
+  isSelected,
   onDragStart,
-  toggleExpand,
-  toggleSelect,
+  onExpand,
+  onSelect,
   onDragOver,
   onDragLeave,
-  getSelectedIds,
   source,
   onDoubleClick,
   countChildren = true,
@@ -39,36 +38,23 @@ const TreeItem: React.FC<TreeItemProps> = ({
   
   // Handle click for selection
   const handleClick = (e: React.MouseEvent) => {
-    toggleSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
+    onSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
   };
 
-  // Handle double click to move item
+  // Handle double click
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onDoubleClick && !hasChildren) {
       onDoubleClick(item);
     } else if (hasChildren) {
-      // If it has children, just toggle expansion on double-click
-      toggleExpand(item.id);
+      // Toggle expansion on double-click for groups
+      onExpand(item.id);
     }
   };
   
-  // Handle drag start
+  // Handle drag start - simplified to just pass to parent
   const handleItemDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
-    console.log('Starting drag from TreeItem', item.id);
-    
-    // Get selected IDs - pass as string array
-    const selectedIds = getSelectedIds();
-    
-    // Use the relevant drag handler based on source
-    if (source === 'available') {
-      handleDragStartForAvailable(e, item, selectedIds);
-    } else {
-      handleDragStartForSelected(e, item, selectedIds);
-    }
-    
-    // Call the parent handler
     onDragStart(e, item);
   };
   
@@ -82,20 +68,6 @@ const TreeItem: React.FC<TreeItemProps> = ({
     }
   };
   
-  // Apply visual cue for reordering
-  useEffect(() => {
-    if (itemRef.current && enableReordering) {
-      // Add visual cue when reordering is enabled
-      itemRef.current.classList.add('reorderable');
-      
-      return () => {
-        if (itemRef.current) {
-          itemRef.current.classList.remove('reorderable');
-        }
-      };
-    }
-  }, [enableReordering]);
-
   // Count leaf nodes (only actual columns, not groups)
   const childCount = countChildren && hasChildren 
     ? countLeafNodes(item.children!)
@@ -104,7 +76,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
   // Determine CSS classes
   const itemClasses = [
     'tree-item',
-    item.selected ? 'selected' : '',
+    isSelected ? 'selected' : '',
     hasChildren ? 'has-children' : '',
     enableReordering ? 'reorderable' : ''
   ].filter(Boolean).join(' ');
@@ -139,7 +111,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
             className="expand-button"
             onClick={(e) => {
               e.stopPropagation();
-              toggleExpand(item.id);
+              onExpand(item.id);
             }}
           >
             {item.expanded ? '-' : '+'}
@@ -164,12 +136,12 @@ const TreeItem: React.FC<TreeItemProps> = ({
               item={child}
               depth={depth + 1}
               index={childIndex}
+              isSelected={isSelected}
               onDragStart={onDragStart}
-              toggleExpand={toggleExpand}
-              toggleSelect={toggleSelect}
+              onExpand={onExpand}
+              onSelect={onSelect}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
-              getSelectedIds={getSelectedIds}
               source={source}
               onDoubleClick={onDoubleClick}
               countChildren={countChildren}

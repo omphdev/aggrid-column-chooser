@@ -1,33 +1,35 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { GridReadyEvent } from 'ag-grid-community';
-import { useColumnContext } from '../../contexts/ColumnContext';
+import { GridReadyEvent, ColDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import 'ag-grid-enterprise';
 
 interface MainGridProps {
+  columnDefs: ColDef[];
+  rowData: any[];
   height?: string | number;
 }
 
 const MainGrid: React.FC<MainGridProps> = ({
+  columnDefs,
+  rowData,
   height = '100%'
 }) => {
-  const {
-    state,
-    setGridApi,
-    getDefaultColDef
-  } = useColumnContext();
-  
-  const { rowData, mainGridColumns } = state;
-  
   // Create default column definition
-  const defaultColDef = getDefaultColDef();
+  const defaultColDef = useMemo<ColDef>(() => ({
+    flex: 1,
+    minWidth: 100,
+    resizable: true,
+    sortable: true,
+    filter: true
+  }), []);
   
   // Grid ready event handler
   const onGridReady = useCallback((params: GridReadyEvent) => {
-    setGridApi(params.api);
-  }, [setGridApi]);
+    // You could save the gridApi here if needed
+    console.log('Grid is ready');
+  }, []);
   
   return (
     <div 
@@ -36,7 +38,7 @@ const MainGrid: React.FC<MainGridProps> = ({
     >
       <AgGridReact
         rowData={rowData}
-        columnDefs={mainGridColumns}
+        columnDefs={columnDefs}
         defaultColDef={defaultColDef}
         onGridReady={onGridReady}
         animateRows={true}

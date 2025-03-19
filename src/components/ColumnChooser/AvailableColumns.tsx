@@ -1,82 +1,96 @@
-import React, { useMemo } from 'react';
-import { useColumnContext } from '../../contexts/ColumnContext';
+import React from 'react';
+import { ColumnItem } from '../../types';
 import TreeView from '../TreeView';
-import { countLeafNodes, filterEmptyGroups } from '../../utils/columnUtils';
 
 interface AvailableColumnsProps {
+  columns: ColumnItem[];
+  selectedIds: string[];
+  leafCount: number;
+  toggleExpand: (id: string) => void;
+  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
+  selectAll: () => void;
+  clearSelection: () => void;
+  getSelectedCount: () => number;
+  moveItemsToSelected: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
+  moveItemsToAvailable?: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
+  onDoubleClick: (id: string) => void;
   title?: string;
 }
 
 const AvailableColumns: React.FC<AvailableColumnsProps> = ({
+  columns,
+  selectedIds,
+  leafCount,
+  toggleExpand,
+  toggleSelect,
+  selectAll,
+  clearSelection,
+  getSelectedCount,
+  moveItemsToSelected,
+  moveItemsToAvailable,
+  onDoubleClick,
   title = "Available Columns"
 }) => {
-  const {
-    state,
-    toggleExpandAvailable,
-    toggleSelectAvailable,
-    selectAllAvailable,
-    clearSelectionAvailable,
-    moveItemsToAvailable,
-    getSelectedCount,
-    moveItemToSelected
-  } = useColumnContext();
-  
-  // Get the available columns from state
-  const { availableColumns } = state;
-  
-  // Filter out empty groups for display
-  const filteredAvailableColumns = useMemo(() => 
-    filterEmptyGroups(availableColumns),
-    [availableColumns]
-  );
-  
-  // Get the selected count
-  const selectedCount = getSelectedCount('available');
-  
-  // Get leaf node count
-  const leafNodeCount = countLeafNodes(availableColumns);
-  
-  // Handle drag start
-  const handleDragStart = (e: React.DragEvent, item: any) => {
-    // Drag handling is done in TreeView component
+  // Handle drag start - just pass through, TreeView will handle it
+  const handleDragStart = (e: React.DragEvent, item: ColumnItem) => {
+    // Handled by TreeView component
+    console.log('Drag start in AvailableColumns for item:', item.id);
   };
   
-  // Handle drop
+  // Handle drop - process drops from the Selected panel
   const handleDrop = (e: React.DragEvent) => {
-    // Get the drag data from the event
+    e.preventDefault();
+    
     try {
-      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+      // Get the drag data
+      const dataText = e.dataTransfer.getData('text/plain');
+      if (!dataText) {
+        console.error('No drag data found');
+        return;
+      }
+      
+      const data = JSON.parse(dataText);
+      console.log('Drop in available columns:', data);
+      
+      // Get drop position from the event
+      const positionedEvent = e as any;
+      const dropPosition = positionedEvent.dropPosition || { insertBefore: true };
       
       // Only handle drops from the selected panel
       if (data.source === 'selected' && data.ids && data.ids.length > 0) {
-        // Get drop position from the enhanced event
-        const positionedEvent = e as any;
-        const dropPosition = positionedEvent.dropPosition || { insertBefore: true };
+        console.log('Moving items from selected to available:', data.ids);
         
-        // Move items to available
-        moveItemsToAvailable(data.ids, dropPosition);
+        // Call the appropriate function 
+        if (moveItemsToAvailable) {
+          moveItemsToAvailable(data.ids, dropPosition);
+        } else {
+          // Use the other function if the direct one isn't available
+          moveItemsToSelected(data.ids, dropPosition);
+        }
       }
     } catch (err) {
       console.error('Error processing drop:', err);
     }
   };
   
-  // Handle double-click on an item
-  const handleDoubleClick = (item: any) => {
-    moveItemToSelected(item.id);
+  // Handle double-click to move an item
+  const handleDoubleClick = (item: ColumnItem) => {
+    onDoubleClick(item.id);
   };
   
   return (
     <TreeView
-      items={filteredAvailableColumns}
+      items={columns}
+      selectedIds={selectedIds}
       title={title}
       onDragStart={handleDragStart}
       onDrop={handleDrop}
-      toggleExpand={toggleExpandAvailable}
-      toggleSelect={toggleSelectAvailable}
-      onSelectAll={selectAllAvailable}
-      onClearSelection={clearSelectionAvailable}
-      selectedCount={selectedCount}
+      toggleExpand={toggleExpand}
+      toggleSelect={toggleSelect}
+      onSelectAll={selectAll}
+      onClearSelection={clearSelection}
+      selectedCount={getSelectedCount()}
+      totalCount={leafCount}
       flatView={false} // Available columns are always in tree view
       source="available"
       onDoubleClick={handleDoubleClick}
