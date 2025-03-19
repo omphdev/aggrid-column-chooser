@@ -14,6 +14,7 @@ interface FlatItemProps {
   showGroupLabels?: boolean;
   getSelectedIds: () => string[];
   source: 'available' | 'selected';
+  onDoubleClick?: (item: ColumnItem) => void;
 }
 
 const FlatItem: React.FC<FlatItemProps> = ({
@@ -27,13 +28,22 @@ const FlatItem: React.FC<FlatItemProps> = ({
   groupName,
   showGroupLabels = false,
   getSelectedIds,
-  source
+  source,
+  onDoubleClick
 }) => {
   const itemRef = useRef<HTMLDivElement>(null);
   
   // Handle click for selection
   const handleClick = (e: React.MouseEvent) => {
     toggleSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
+  };
+  
+  // Handle double click to move item
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onDoubleClick) {
+      onDoubleClick(item);
+    }
   };
   
   // Handle drag start
@@ -54,7 +64,6 @@ const FlatItem: React.FC<FlatItemProps> = ({
   };
   
   // Handle dragover
-  // Handle dragover
   const handleItemDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -66,15 +75,22 @@ const FlatItem: React.FC<FlatItemProps> = ({
     }
   };
   
+  // Determine CSS classes
+  const itemClasses = [
+    'flat-item',
+    item.selected ? 'selected' : ''
+  ].filter(Boolean).join(' ');
+  
   return (
     <div 
       ref={itemRef}
-      className={`flat-item ${item.selected ? 'selected' : ''}`}
+      className={itemClasses}
       draggable={true}
       onDragStart={handleItemDragStart}
       onDragOver={handleItemDragOver}
       onDragLeave={onDragLeave}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       data-item-id={item.id}
       data-item-index={index}
       data-flat-index={flatIndex !== undefined ? flatIndex : index}

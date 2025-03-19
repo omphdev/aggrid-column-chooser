@@ -3,6 +3,7 @@ import { ColumnItem } from '../../types';
 import TreeItem from './TreeItem';
 import FlatItem from './FlatItem';
 import { useTreeDragDrop } from './hooks/useTreeDragDrop';
+import { countLeafNodes, countSelectedLeafNodes } from '../../utils/columnUtils';
 import './TreeView.css';
 
 interface TreeViewProps {
@@ -19,6 +20,8 @@ interface TreeViewProps {
   showGroupLabels?: boolean;
   source: 'available' | 'selected';
   hideHeader?: boolean;
+  onDoubleClick?: (item: ColumnItem) => void;
+  countChildren?: boolean;
 }
 
 const TreeView: React.FC<TreeViewProps> = ({
@@ -34,7 +37,9 @@ const TreeView: React.FC<TreeViewProps> = ({
   flatView = false,
   showGroupLabels = false,
   source,
-  hideHeader = false
+  hideHeader = false,
+  onDoubleClick,
+  countChildren = true
 }) => {
   // Get all selected IDs for drag operations
   const getSelectedIds = useCallback(() => {
@@ -92,6 +97,12 @@ const TreeView: React.FC<TreeViewProps> = ({
     items.forEach(item => processItem(item));
     return result;
   }, [items, flatView]);
+
+  // Count leaf nodes (excluding groups)
+  const leafNodeCount = useMemo(() => countLeafNodes(items), [items]);
+  
+  // Count selected leaf nodes
+  const selectedLeafCount = useMemo(() => countSelectedLeafNodes(items), [items]);
   
   return (
     <div 
@@ -103,10 +114,13 @@ const TreeView: React.FC<TreeViewProps> = ({
       {/* Header with actions - only show if not hidden */}
       {!hideHeader && (
         <div className="tree-view-header">
-          <span className="title">{title}</span>
+          <div className="header-left">
+            <span className="title">{title}</span>
+            <span className="column-count">{leafNodeCount} columns</span>
+          </div>
           <div className="actions">
             {selectedCount > 0 && (
-              <span className="selected-count">{selectedCount} selected</span>
+              <span className="selected-count">{selectedLeafCount} selected</span>
             )}
             <button className="select-all-btn" onClick={onSelectAll}>Select All</button>
             <button className="clear-btn" onClick={onClearSelection}>Clear</button>
@@ -133,6 +147,7 @@ const TreeView: React.FC<TreeViewProps> = ({
                 showGroupLabels={showGroupLabels}
                 getSelectedIds={getSelectedIds}
                 source={source}
+                onDoubleClick={onDoubleClick}
               />
             ))
           ) : (
@@ -150,6 +165,8 @@ const TreeView: React.FC<TreeViewProps> = ({
                 onDragLeave={handleDragLeave}
                 getSelectedIds={getSelectedIds}
                 source={source}
+                onDoubleClick={onDoubleClick}
+                countChildren={countChildren}
               />
             ))
           )

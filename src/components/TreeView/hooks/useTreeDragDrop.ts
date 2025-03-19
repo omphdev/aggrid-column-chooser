@@ -41,9 +41,13 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
   
   // Handle drag leave
   const handleDragLeave = useCallback(() => {
+    // Use a small timeout to avoid flickering when moving between items
     setTimeout(() => {
-      if (!document.activeElement || !document.activeElement.classList.contains('tree-item')) {
+      if (!document.activeElement || 
+          (!document.activeElement.classList.contains('tree-item') && 
+           !document.activeElement.classList.contains('flat-item'))) {
         setActiveDropTarget(null);
+        hideAll();
       }
     }, 50);
   }, []);
@@ -52,6 +56,7 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
   const handleContainerDragOver = useCallback((e: React.DragEvent) => {
     // Critical: Prevent default to enable drop
     e.preventDefault();
+    e.stopPropagation();
   }, []);
   
   // Handle drop with position information

@@ -65,4 +65,6 @@ export interface ColumnContextValue {
   moveSelectedUp: () => void;
   moveSelectedDown: () => void;
   clearSelected: () => void;
+  moveItemToSelected: (id: string) => void;
+  moveItemToAvailable: (id: string) => void;
 }

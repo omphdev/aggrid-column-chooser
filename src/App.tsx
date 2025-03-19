@@ -85,7 +85,7 @@ function generateMockColumnDefinitions() {
     columns.push({
       id: `column_${i}`,
       field: `column_${i}`,
-      groupPath: [`Group ${Math.ceil(i / 10)}`, `Column ${i}`]
+      groupPath: [`Group ${Math.ceil(i / 10)}`, `Group ${Math.ceil(i / 10 * 2)}`, `Column ${i}`]
     });
   }
   

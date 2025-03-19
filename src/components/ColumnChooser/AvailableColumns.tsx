@@ -1,6 +1,7 @@
 import React from 'react';
 import { useColumnContext } from '../../contexts/ColumnContext';
 import TreeView from '../TreeView';
+import { countLeafNodes } from '../../utils/columnUtils';
 
 interface AvailableColumnsProps {
   title?: string;
@@ -16,7 +17,8 @@ const AvailableColumns: React.FC<AvailableColumnsProps> = ({
     selectAllAvailable,
     clearSelectionAvailable,
     moveItemsToAvailable,
-    getSelectedCount
+    getSelectedCount,
+    moveItemToSelected
   } = useColumnContext();
   
   // Get the available columns from state
@@ -24,6 +26,9 @@ const AvailableColumns: React.FC<AvailableColumnsProps> = ({
   
   // Get the selected count
   const selectedCount = getSelectedCount('available');
+  
+  // Get leaf node count
+  const leafNodeCount = countLeafNodes(availableColumns);
   
   // Handle drag start
   const handleDragStart = (e: React.DragEvent, item: any) => {
@@ -50,6 +55,11 @@ const AvailableColumns: React.FC<AvailableColumnsProps> = ({
     }
   };
   
+  // Handle double-click on an item
+  const handleDoubleClick = (item: any) => {
+    moveItemToSelected(item.id);
+  };
+  
   return (
     <TreeView
       items={availableColumns}
@@ -63,6 +73,8 @@ const AvailableColumns: React.FC<AvailableColumnsProps> = ({
       selectedCount={selectedCount}
       flatView={false} // Available columns are always in tree view
       source="available"
+      onDoubleClick={handleDoubleClick}
+      countChildren={true}
     />
   );
 };

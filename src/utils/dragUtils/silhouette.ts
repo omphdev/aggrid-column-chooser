@@ -213,15 +213,24 @@ function findScrollableParent(element: HTMLElement): HTMLElement | null {
  * Reset any row spacing created by the insert indicator
  */
 function resetRowSpacing() {
+  // First, immediately reset the margin style
   document.querySelectorAll('.drag-spacing').forEach(element => {
     (element as HTMLElement).style.marginTop = '';
     (element as HTMLElement).style.marginBottom = '';
-    
-    // Remove the transition class after a delay
-    setTimeout(() => {
-      element.classList.remove('drag-spacing');
-    }, 200);
   });
+  
+  // Then use a small timeout to remove the class after transitions complete
+  setTimeout(() => {
+    document.querySelectorAll('.drag-spacing').forEach(element => {
+      element.classList.remove('drag-spacing');
+    });
+    
+    // Add a more thorough cleanup for any elements that might have spacing
+    document.querySelectorAll('.tree-item, .flat-item').forEach(element => {
+      (element as HTMLElement).style.marginTop = '';
+      (element as HTMLElement).style.marginBottom = '';
+    });
+  }, 100);
 }
 
 /**
@@ -236,6 +245,7 @@ export function hideAll() {
     insertIndicatorElement.style.display = 'none';
   }
   
+  // More thorough cleanup of spacing elements
   resetRowSpacing();
 }
 

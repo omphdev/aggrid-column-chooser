@@ -1,6 +1,7 @@
 import React from 'react';
 import { useColumnContext } from '../../contexts/ColumnContext';
 import TreeView from '../TreeView';
+import { countLeafNodes } from '../../utils/columnUtils';
 import './SelectedColumns.css';
 
 interface SelectedColumnsProps {
@@ -24,7 +25,8 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
     getSelectedCount,
     moveSelectedUp,
     moveSelectedDown,
-    clearSelected
+    clearSelected,
+    moveItemToAvailable
   } = useColumnContext();
   
   // Get columns from state
@@ -32,6 +34,9 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
   
   // Get the selected count
   const selectedCount = getSelectedCount('selected');
+  
+  // Get leaf node count
+  const leafNodeCount = countLeafNodes(selectedColumns);
   
   // Always use flat view for selected columns
   const useFlatView = true;
@@ -63,12 +68,18 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
     }
   };
   
+  // Handle double-click on an item
+  const handleDoubleClick = (item: any) => {
+    moveItemToAvailable(item.id);
+  };
+  
   // Custom header with action buttons
   const renderCustomHeader = () => (
     <div className="selected-columns-header">
       <div className="header-title">
         <h3>{title}</h3>
-        <div className="selection-count">
+        <div className="column-stats">
+          <span className="column-count">{leafNodeCount} columns</span>
           {selectedCount > 0 && (
             <span className="selected-count">{selectedCount} selected</span>
           )}
@@ -130,6 +141,7 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
           showGroupLabels={showGroupLabels}
           source="selected"
           hideHeader={true}
+          onDoubleClick={handleDoubleClick}
         />
       </div>
     </div>

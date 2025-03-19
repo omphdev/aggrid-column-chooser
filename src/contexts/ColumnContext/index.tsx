@@ -101,6 +101,17 @@ export const ColumnProvider: React.FC<ColumnProviderProps> = ({ children }) => {
   const clearSelected = useCallback(() => {
     dispatch({ type: 'CLEAR_SELECTED' });
   }, []);
+
+  const moveItemToSelected = useCallback((id: string) => {
+    const dropPosition = { insertBefore: false }; // Add to end
+    dispatch({ type: 'MOVE_TO_SELECTED', payload: { ids: [id], dropPosition } });
+  }, []);
+  
+  const moveItemToAvailable = useCallback((id: string) => {
+    const dropPosition = { insertBefore: false }; // Add to end
+    dispatch({ type: 'MOVE_TO_AVAILABLE', payload: { ids: [id], dropPosition } });
+  }, []);
+  
   
   // Derived values
   const getSelectedCount = useCallback((source: 'available' | 'selected') => {
@@ -138,7 +149,9 @@ export const ColumnProvider: React.FC<ColumnProviderProps> = ({ children }) => {
     // New actions
     moveSelectedUp,
     moveSelectedDown,
-    clearSelected
+    clearSelected,
+    moveItemToSelected,
+    moveItemToAvailable,
   }), [
     state,
     initialize,
@@ -159,7 +172,9 @@ export const ColumnProvider: React.FC<ColumnProviderProps> = ({ children }) => {
     getDefaultColDef,
     moveSelectedUp,
     moveSelectedDown,
-    clearSelected
+    clearSelected,
+    moveItemToSelected,
+    moveItemToAvailable,
   ]);
   
   return (

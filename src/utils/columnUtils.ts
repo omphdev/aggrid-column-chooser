@@ -209,3 +209,52 @@ export const convertToAgGridColumns = (selectedCols: ColumnItem[]): ColDef[] => 
   selectedCols.forEach(processItem);
   return result;
 };
+
+/**
+ * Count only leaf nodes in a tree (items with fields)
+ * This excludes group nodes from the count
+ */
+export function countLeafNodes(items: ColumnItem[]): number {
+  let count = 0;
+  
+  const countLeaves = (itemList: ColumnItem[]) => {
+    for (const item of itemList) {
+      // Count only if it's a leaf node (has field but no children)
+      if (item.field && (!item.children || item.children.length === 0)) {
+        count++;
+      }
+      
+      // Recursively count children
+      if (item.children && item.children.length > 0) {
+        countLeaves(item.children);
+      }
+    }
+  };
+  
+  countLeaves(items);
+  return count;
+}
+
+/**
+ * Count selected leaf nodes in a tree
+ */
+export function countSelectedLeafNodes(items: ColumnItem[]): number {
+  let count = 0;
+  
+  const countSelectedLeaves = (itemList: ColumnItem[]) => {
+    for (const item of itemList) {
+      // Count only if it's a selected leaf node
+      if (item.field && (!item.children || item.children.length === 0) && item.selected) {
+        count++;
+      }
+      
+      // Recursively count children
+      if (item.children && item.children.length > 0) {
+        countSelectedLeaves(item.children);
+      }
+    }
+  };
+  
+  countSelectedLeaves(items);
+  return count;
+}

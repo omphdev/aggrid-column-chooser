@@ -13,6 +13,8 @@ interface TreeItemProps {
   onDragLeave?: () => void;
   getSelectedIds: () => string[];
   source: 'available' | 'selected';
+  onDoubleClick?: (item: ColumnItem) => void;
+  countChildren?: boolean;
 }
 
 const TreeItem: React.FC<TreeItemProps> = ({
@@ -25,7 +27,9 @@ const TreeItem: React.FC<TreeItemProps> = ({
   onDragOver,
   onDragLeave,
   getSelectedIds,
-  source
+  source,
+  onDoubleClick,
+  countChildren = true
 }) => {
   const itemRef = useRef<HTMLDivElement>(null);
   const hasChildren = item.children && item.children.length > 0;
@@ -33,6 +37,17 @@ const TreeItem: React.FC<TreeItemProps> = ({
   // Handle click for selection
   const handleClick = (e: React.MouseEvent) => {
     toggleSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
+  };
+
+  // Handle double click to move item
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onDoubleClick && !hasChildren) {
+      onDoubleClick(item);
+    } else if (hasChildren) {
+      // If it has children, just toggle expansion on double-click
+      toggleExpand(item.id);
+    }
   };
   
   // Handle drag start
@@ -55,7 +70,6 @@ const TreeItem: React.FC<TreeItemProps> = ({
   };
   
   // Handle dragover
-  // Handle dragover
   const handleItemDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -66,18 +80,34 @@ const TreeItem: React.FC<TreeItemProps> = ({
       onDragOver(e, itemRef.current, item.id);
     }
   };
+
+  // Count children if requested and item has children
+  const childCount = countChildren && hasChildren 
+    ? item.children!.reduce((count, child) => 
+        count + (child.children && child.children.length > 0 
+          ? child.children.length 
+          : 1), 0)
+    : 0;
+  
+  // Determine CSS classes
+  const itemClasses = [
+    'tree-item',
+    item.selected ? 'selected' : '',
+    hasChildren ? 'has-children' : ''
+  ].filter(Boolean).join(' ');
   
   return (
     <div className="tree-item-container">
       {/* Item header */}
       <div 
         ref={itemRef}
-        className={`tree-item ${item.selected ? 'selected' : ''}`}
+        className={itemClasses}
         draggable={true}
         onDragStart={handleItemDragStart}
         onDragOver={handleItemDragOver}
         onDragLeave={onDragLeave}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         style={{ paddingLeft: `${depth * 16}px` }}
         data-item-id={item.id}
         data-item-index={index}
@@ -95,8 +125,13 @@ const TreeItem: React.FC<TreeItemProps> = ({
           </button>
         )}
         
-        {/* Item name */}
-        <span className="item-name">{item.name}</span>
+        {/* Item name with child count if applicable */}
+        <span className="item-name">
+          {item.name}
+          {hasChildren && countChildren && childCount > 0 && (
+            <span className="group-count">({childCount})</span>
+          )}
+        </span>
       </div>
       
       {/* Children */}
@@ -115,6 +150,8 @@ const TreeItem: React.FC<TreeItemProps> = ({
               onDragLeave={onDragLeave}
               getSelectedIds={getSelectedIds}
               source={source}
+              onDoubleClick={onDoubleClick}
+              countChildren={countChildren}
             />
           ))}
         </div>
