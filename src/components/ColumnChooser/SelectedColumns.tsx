@@ -1,6 +1,7 @@
 import React from 'react';
 import { useColumnContext } from '../../contexts/ColumnContext';
 import TreeView from '../TreeView';
+import './SelectedColumns.css';
 
 interface SelectedColumnsProps {
   title?: string;
@@ -20,7 +21,10 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
     clearSelectionSelected,
     moveItemsToSelected,
     reorderSelectedItems,
-    getSelectedCount
+    getSelectedCount,
+    moveSelectedUp,
+    moveSelectedDown,
+    clearSelected
   } = useColumnContext();
   
   // Get columns from state
@@ -59,21 +63,76 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
     }
   };
   
+  // Custom header with action buttons
+  const renderCustomHeader = () => (
+    <div className="selected-columns-header">
+      <div className="header-title">
+        <h3>{title}</h3>
+        <div className="selection-count">
+          {selectedCount > 0 && (
+            <span className="selected-count">{selectedCount} selected</span>
+          )}
+        </div>
+      </div>
+      
+      <div className="header-actions">
+        <div className="selection-actions">
+          <button className="action-button" onClick={selectAllSelected}>Select All</button>
+          <button className="action-button" onClick={clearSelectionSelected}>Clear Selection</button>
+        </div>
+        
+        <div className="column-actions">
+          <button 
+            className="action-button move-up-btn" 
+            onClick={moveSelectedUp}
+            disabled={selectedCount === 0}
+            title="Move selected row(s) up"
+          >
+            <span>↑</span>
+          </button>
+          <button 
+            className="action-button move-down-btn" 
+            onClick={moveSelectedDown}
+            disabled={selectedCount === 0}
+            title="Move selected row(s) down"
+          >
+            <span>↓</span>
+          </button>
+          <button 
+            className="action-button clear-btn" 
+            onClick={clearSelected}
+            disabled={selectedColumns.length === 0}
+            title="Clear all selected columns"
+          >
+            <span>Clear All</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+  
   return (
-    <TreeView
-      items={selectedColumns}
-      title={title}
-      onDragStart={handleDragStart}
-      onDrop={handleDrop}
-      toggleExpand={toggleExpandSelected}
-      toggleSelect={toggleSelectSelected}
-      onSelectAll={selectAllSelected}
-      onClearSelection={clearSelectionSelected}
-      selectedCount={selectedCount}
-      flatView={useFlatView}
-      showGroupLabels={showGroupLabels}
-      source="selected"
-    />
+    <div className="selected-columns-container">
+      {renderCustomHeader()}
+      
+      <div className="selected-columns-content">
+        <TreeView
+          items={selectedColumns}
+          title=""
+          onDragStart={handleDragStart}
+          onDrop={handleDrop}
+          toggleExpand={toggleExpandSelected}
+          toggleSelect={toggleSelectSelected}
+          onSelectAll={selectAllSelected}
+          onClearSelection={clearSelectionSelected}
+          selectedCount={selectedCount}
+          flatView={useFlatView}
+          showGroupLabels={showGroupLabels}
+          source="selected"
+          hideHeader={true}
+        />
+      </div>
+    </div>
   );
 };
 

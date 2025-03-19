@@ -18,6 +18,7 @@ interface TreeViewProps {
   flatView?: boolean;
   showGroupLabels?: boolean;
   source: 'available' | 'selected';
+  hideHeader?: boolean;
 }
 
 const TreeView: React.FC<TreeViewProps> = ({
@@ -32,7 +33,8 @@ const TreeView: React.FC<TreeViewProps> = ({
   selectedCount,
   flatView = false,
   showGroupLabels = false,
-  source
+  source,
+  hideHeader = false
 }) => {
   // Get all selected IDs for drag operations
   const getSelectedIds = useCallback(() => {
@@ -98,17 +100,19 @@ const TreeView: React.FC<TreeViewProps> = ({
       onDrop={handleDrop}
       onDragLeave={handleDragLeave}
     >
-      {/* Header with actions */}
-      <div className="tree-view-header">
-        <span className="title">{title}</span>
-        <div className="actions">
-          {selectedCount > 0 && (
-            <span className="selected-count">{selectedCount} selected</span>
-          )}
-          <button className="select-all-btn" onClick={onSelectAll}>Select All</button>
-          <button className="clear-btn" onClick={onClearSelection}>Clear</button>
+      {/* Header with actions - only show if not hidden */}
+      {!hideHeader && (
+        <div className="tree-view-header">
+          <span className="title">{title}</span>
+          <div className="actions">
+            {selectedCount > 0 && (
+              <span className="selected-count">{selectedCount} selected</span>
+            )}
+            <button className="select-all-btn" onClick={onSelectAll}>Select All</button>
+            <button className="clear-btn" onClick={onClearSelection}>Clear</button>
+          </div>
         </div>
-      </div>
+      )}
       
       {/* Content area */}
       <div className="tree-view-content">

@@ -20,7 +20,7 @@ export interface DropPosition {
   insertBefore: boolean;
 }
 
-// Action types
+// Expanded action types to include new actions
 export type ColumnAction =
   | { type: 'INITIALIZE'; payload: { allPossibleColumns: ColumnItem[]; initialData: any[] } }
   | { type: 'TOGGLE_EXPAND_AVAILABLE'; payload: { itemId: string } }
@@ -35,7 +35,10 @@ export type ColumnAction =
   | { type: 'MOVE_TO_AVAILABLE'; payload: { ids: string[]; dropPosition: DropPosition } }
   | { type: 'REORDER_SELECTED'; payload: { ids: string[]; dropPosition: DropPosition } }
   | { type: 'SET_FLAT_VIEW'; payload: { value: boolean } }
-  | { type: 'SET_GRID_API'; payload: { api: GridApi } };
+  | { type: 'SET_GRID_API'; payload: { api: GridApi } }
+  | { type: 'MOVE_SELECTED_UP' }
+  | { type: 'MOVE_SELECTED_DOWN' }
+  | { type: 'CLEAR_SELECTED' };
 
 // Context interface
 export interface ColumnContextValue {
@@ -58,4 +61,8 @@ export interface ColumnContextValue {
   // Derived values
   getSelectedCount: (source: 'available' | 'selected') => number;
   getDefaultColDef: () => ColDef;
+  // New actions
+  moveSelectedUp: () => void;
+  moveSelectedDown: () => void;
+  clearSelected: () => void;
 }

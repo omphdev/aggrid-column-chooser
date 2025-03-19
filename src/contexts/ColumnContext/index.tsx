@@ -89,6 +89,19 @@ export const ColumnProvider: React.FC<ColumnProviderProps> = ({ children }) => {
     dispatch({ type: 'SET_GRID_API', payload: { api } });
   }, []);
   
+  // New actions for buttons
+  const moveSelectedUp = useCallback(() => {
+    dispatch({ type: 'MOVE_SELECTED_UP' });
+  }, []);
+  
+  const moveSelectedDown = useCallback(() => {
+    dispatch({ type: 'MOVE_SELECTED_DOWN' });
+  }, []);
+  
+  const clearSelected = useCallback(() => {
+    dispatch({ type: 'CLEAR_SELECTED' });
+  }, []);
+  
   // Derived values
   const getSelectedCount = useCallback((source: 'available' | 'selected') => {
     const items = source === 'available' ? state.availableColumns : state.selectedColumns;
@@ -121,7 +134,11 @@ export const ColumnProvider: React.FC<ColumnProviderProps> = ({ children }) => {
     setFlatView,
     setGridApi,
     getSelectedCount,
-    getDefaultColDef
+    getDefaultColDef,
+    // New actions
+    moveSelectedUp,
+    moveSelectedDown,
+    clearSelected
   }), [
     state,
     initialize,
@@ -139,7 +156,10 @@ export const ColumnProvider: React.FC<ColumnProviderProps> = ({ children }) => {
     setFlatView,
     setGridApi,
     getSelectedCount,
-    getDefaultColDef
+    getDefaultColDef,
+    moveSelectedUp,
+    moveSelectedDown,
+    clearSelected
   ]);
   
   return (
