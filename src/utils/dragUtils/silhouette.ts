@@ -167,11 +167,22 @@ export function showInsertIndicator(element: HTMLElement, insertBefore: boolean)
   // Get element position
   const rect = element.getBoundingClientRect();
   
+  // Calculate scrollable parent's offset
+  let scrollOffset = 0;
+  const scrollableParent = findScrollableParent(element);
+  if (scrollableParent) {
+    scrollOffset = scrollableParent.scrollTop;
+  }
+  
+  // Get the actual position to account for scrolling
+  const topPos = insertBefore ? rect.top - 2 : rect.bottom;
+  
   // Position the indicator
-  insertIndicatorElement.style.top = `${insertBefore ? rect.top - 2 : rect.bottom + 2}px`;
+  insertIndicatorElement.style.top = `${topPos}px`;
   insertIndicatorElement.style.left = `${rect.left}px`;
   insertIndicatorElement.style.width = `${rect.width}px`;
   insertIndicatorElement.style.display = 'block';
+  insertIndicatorElement.style.position = 'fixed'; // Use fixed position to avoid scroll issues
   
   // Add spacing effect
   element.classList.add('drag-spacing');
@@ -180,6 +191,22 @@ export function showInsertIndicator(element: HTMLElement, insertBefore: boolean)
   } else {
     element.style.marginBottom = '20px';
   }
+}
+
+
+// Helper function to find scrollable parent
+function findScrollableParent(element: HTMLElement): HTMLElement | null {
+  let parent = element.parentElement;
+  
+  while (parent) {
+    const { overflow, overflowY } = window.getComputedStyle(parent);
+    if (/auto|scroll|overlay/.test(overflow + overflowY)) {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+  
+  return null;
 }
 
 /**

@@ -54,11 +54,14 @@ const FlatItem: React.FC<FlatItemProps> = ({
   };
   
   // Handle dragover
+  // Handle dragover
   const handleItemDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (onDragOver && itemRef.current) {
+      // Add debug output
+      console.log(`Drag over FlatItem: ${item.id}, ${item.name}`);
       onDragOver(e, itemRef.current, item.id);
     }
   };

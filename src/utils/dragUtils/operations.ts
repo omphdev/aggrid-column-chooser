@@ -258,6 +258,9 @@ export function parseDragData(e: React.DragEvent): { ids: string[], source: stri
 /**
  * Find drop position from event and element
  */
+/**
+ * Find drop position from event and element
+ */
 export function findDropPosition(
   e: React.DragEvent, 
   element: HTMLElement
@@ -267,11 +270,17 @@ export function findDropPosition(
   // Get item ID from data attribute
   const targetId = element.dataset.itemId;
   
-  // Calculate insert position based on mouse position
+  // Calculate insert position based on mouse position relative to the element
   const rect = element.getBoundingClientRect();
   const mouseY = e.clientY;
-  const threshold = rect.top + (rect.height / 2);
-  const insertBefore = mouseY < threshold;
+  
+  // Use a 1/3 - 2/3 split for better accuracy
+  // This gives a more natural feel when dragging items as the "insert before" area
+  // at the top of each item is larger than the default 50/50 split
+  const mouseRelativePos = (mouseY - rect.top) / rect.height;
+  const insertBefore = mouseRelativePos < 0.33; // Use top third for "insert before"
+  
+  console.log(`Drop position calculated: targetId=${targetId}, insertBefore=${insertBefore}, relativePos=${mouseRelativePos.toFixed(2)}`);
   
   return { targetId, insertBefore };
 }

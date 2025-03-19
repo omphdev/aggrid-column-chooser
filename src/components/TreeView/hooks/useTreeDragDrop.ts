@@ -26,8 +26,14 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
     // Don't show indicator if dragging onto itself
     if (dragData.ids.length === 1 && dragData.ids[0] === itemId) return;
     
+    // Calculate whether to insert before or after with a 1/3 - 2/3 split for better accuracy
+    // This gives a larger target area at the top and bottom of each item
+    const rect = element.getBoundingClientRect();
+    const mouseRelativePos = (e.clientY - rect.top) / rect.height;
+    const insertBefore = mouseRelativePos < 0.33; // Use top third for "insert before"
+    
     // Show insertion indicator
-    showInsertIndicator(element, e.clientY < element.getBoundingClientRect().top + element.offsetHeight / 2);
+    showInsertIndicator(element, insertBefore);
     
     // Update active drop target
     setActiveDropTarget(itemId);

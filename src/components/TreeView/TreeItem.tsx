@@ -55,11 +55,14 @@ const TreeItem: React.FC<TreeItemProps> = ({
   };
   
   // Handle dragover
+  // Handle dragover
   const handleItemDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (onDragOver && itemRef.current) {
+      // Add debug output to understand what's happening
+      console.log(`Drag over TreeItem: ${item.id}, ${item.name}`);
       onDragOver(e, itemRef.current, item.id);
     }
   };

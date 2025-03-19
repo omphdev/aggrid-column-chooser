@@ -10,7 +10,6 @@ interface SelectedColumnsProps {
 
 const SelectedColumns: React.FC<SelectedColumnsProps> = ({
   title = "Selected Columns",
-  flatView,
   showGroupLabels = true
 }) => {
   const {
@@ -24,14 +23,14 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
     getSelectedCount
   } = useColumnContext();
   
-  // Get columns and view mode from state
-  const { selectedColumns, isFlatView } = state;
+  // Get columns from state
+  const { selectedColumns } = state;
   
   // Get the selected count
   const selectedCount = getSelectedCount('selected');
   
-  // Use context's flat view if prop not provided
-  const useFlatView = flatView !== undefined ? flatView : isFlatView;
+  // Always use flat view for selected columns
+  const useFlatView = true;
   
   // Handle drag start
   const handleDragStart = (e: React.DragEvent, item: any) => {

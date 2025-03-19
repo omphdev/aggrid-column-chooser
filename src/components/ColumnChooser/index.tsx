@@ -36,16 +36,17 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
             checked={isFlatView}
             onChange={(e) => setFlatView(e.target.checked)}
           />
-          <span>Flat View</span>
+          <span>Available Columns Tree View</span>
         </label>
       </div>
       
       <div className="column-chooser-panels">
         <AvailableColumns />
-        <SelectedColumns flatView={isFlatView} />
+        <SelectedColumns />
       </div>
     </div>
   );
+
 };
 
 export default React.memo(ColumnChooser);

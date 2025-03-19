@@ -332,23 +332,73 @@ export function insertItemIntoFlatList(
   // Clone to avoid mutating the original array
   const result = [...tree];
   
-  // If not respecting groups, simply add at the root level
+  // For the selected panel, we want to completely flatten the list
+  // and insert exactly where specified
   if (!respectGroups) {
+    // First, let's get a flattened version of the tree (in case there are nested items)
+    const flatItems: ColumnItem[] = [];
+    const flattenTree = (items: ColumnItem[]) => {
+      for (const itm of items) {
+        // Create a copy without children to add to flat list
+        if (itm.field) {
+          const flatItem = { ...itm };
+          delete flatItem.children;
+          flatItems.push(flatItem);
+        }
+        
+        // Process children
+        if (itm.children && itm.children.length > 0) {
+          flattenTree(itm.children);
+        }
+      }
+    };
+    
+    // Get all existing items as a flat list
+    flattenTree(result);
+    
+    // Remove original tree and replace with flat items
+    result.length = 0;
+    result.push(...flatItems);
+    
+    // Now insert the new item at the specified position
     if (targetId) {
       const targetIndex = result.findIndex(i => i.id === targetId);
       if (targetIndex >= 0) {
         const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
-        if (!result.some(i => i.id === item.id)) {
-          result.splice(insertIndex, 0, item);
+        
+        // Ensure we're not duplicating the item
+        const existingIndex = result.findIndex(i => i.id === item.id);
+        if (existingIndex >= 0) {
+          // Remove existing item first
+          result.splice(existingIndex, 1);
+          
+          // Adjust insert index if needed
+          const adjustedInsertIndex = existingIndex < insertIndex ? insertIndex - 1 : insertIndex;
+          result.splice(adjustedInsertIndex, 0, item);
+        } else {
+          // Insert the item without children to keep it flat
+          const flatItem = { ...item };
+          delete flatItem.children;
+          result.splice(insertIndex, 0, flatItem);
         }
+        
+        console.log(`Inserted item ${item.id} at index ${insertIndex}, target: ${targetId}, insertBefore: ${insertBefore}`);
         return result;
       }
     }
     
-    // Add to the end if target not found
-    if (!result.some(i => i.id === item.id)) {
-      result.push(item);
+    // Add to the end if target not found (after ensuring we don't duplicate)
+    const existingIndex = result.findIndex(i => i.id === item.id);
+    if (existingIndex >= 0) {
+      // Remove and re-add at the end
+      result.splice(existingIndex, 1);
     }
+    
+    // Insert flat version at the end
+    const flatItem = { ...item };
+    delete flatItem.children;
+    result.push(flatItem);
+    console.log(`Inserted item ${item.id} at the end (no target found)`);
     
     return result;
   }
