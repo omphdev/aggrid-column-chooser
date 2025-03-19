@@ -595,69 +595,74 @@ export function columnReducer(state: ColumnState, action: ColumnAction): ColumnS
       };
     }
       
-    case 'REORDER_SELECTED': {
-      const { ids, dropPosition } = action.payload;
-      
-      // Skip if dropping onto self
-      if (ids.length === 1 && ids[0] === dropPosition.targetId) {
-        return state;
-      }
-      
-      let newSelected = [...state.selectedColumns];
-      
-      // Collect items to move
-      const itemsToMove: ColumnItem[] = [];
-      
-      for (const id of ids) {
-        const item = findItemInTree(newSelected, id);
-        if (item) {
-          itemsToMove.push(deepCloneItem(item));
-        }
-      }
-      
-      // Remove items from source
-      for (const id of ids) {
-        newSelected = removeItemFromTree(newSelected, id);
-      }
-      
-      // Add items back at new position
-      for (const item of itemsToMove) {
-        if (state.isFlatView) {
-          newSelected = insertItemIntoFlatList(
-            newSelected, 
-            item, 
-            state.originalAllColumns,
-            dropPosition.targetId, 
-            dropPosition.insertBefore,
-            false // Don't respect groups in reordering
-          );
-        } else {
-          newSelected = insertItemIntoTreeAtPosition(
-            newSelected, 
-            item, 
-            state.originalAllColumns,
-            dropPosition.targetId,
-            dropPosition.insertBefore,
-            false // Don't respect groups in reordering
-          );
-        }
+    // This is the fixed implementation for the REORDER_SELECTED case in reducer.ts
 
-        // For subsequent items, insert after the one we just added
-        if (dropPosition.targetId) {
-          dropPosition.targetId = item.id;
-          dropPosition.insertBefore = false;
-        }
-      }
-      
-      // Generate grid columns
-      const mainGridColumns = generateGridColumns(newSelected);
-      
-      return {
-        ...state,
-        selectedColumns: newSelected,
-        mainGridColumns
-      };
+// Update this section in the src/contexts/ColumnContext/reducer.ts file
+
+// This is specifically for the REORDER_SELECTED case in the reducer
+// You'll need to add this to the existing switch statement
+
+case 'REORDER_SELECTED': {
+  const { ids, dropPosition } = action.payload;
+  
+  console.log('REORDER_SELECTED action triggered', { ids, dropPosition });
+  
+  // Skip if dropping onto self
+  if (ids.length === 1 && ids[0] === dropPosition.targetId) {
+    return state;
+  }
+  
+  let newSelected = [...state.selectedColumns];
+  
+  // Collect items to move
+  const itemsToMove: ColumnItem[] = [];
+  
+  for (const id of ids) {
+    const item = findItemInTree(newSelected, id);
+    if (item) {
+      itemsToMove.push(deepCloneItem(item));
     }
+  }
+  
+  console.log('Items to reorder:', itemsToMove.map(item => item.name));
+  
+  // Remove items from source
+  for (const id of ids) {
+    newSelected = removeItemFromTree(newSelected, id);
+  }
+  
+  // If no target specified, add to the end
+  if (!dropPosition.targetId) {
+    console.log('No target specified, adding items to the end');
+    for (const item of itemsToMove) {
+      newSelected.push(item);
+    }
+  } else {
+    // Find the target index
+    const targetIndex = newSelected.findIndex(item => item.id === dropPosition.targetId);
+    
+    if (targetIndex >= 0) {
+      console.log(`Target found at index ${targetIndex}, insertBefore: ${dropPosition.insertBefore}`);
+      const insertIndex = dropPosition.insertBefore ? targetIndex : targetIndex + 1;
+      
+      // Insert all items at once to maintain their relative order
+      newSelected.splice(insertIndex, 0, ...itemsToMove);
+    } else {
+      console.log('Target not found, adding to the end');
+      // If target not found, add to the end
+      newSelected.push(...itemsToMove);
+    }
+  }
+  
+  // Generate grid columns
+  const mainGridColumns = generateGridColumns(newSelected);
+  
+  return {
+    ...state,
+    selectedColumns: newSelected,
+    mainGridColumns
+  };
+}
       
     case 'SET_FLAT_VIEW':
       return {

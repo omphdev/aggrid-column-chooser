@@ -258,3 +258,32 @@ export function countSelectedLeafNodes(items: ColumnItem[]): number {
   countSelectedLeaves(items);
   return count;
 }
+
+/**
+ * Filter out empty groups from a tree structure recursively
+ * An empty group is one that has no children or all of its children are empty groups
+ */
+export function filterEmptyGroups(items: ColumnItem[]): ColumnItem[] {
+  return items.reduce<ColumnItem[]>((filteredItems, item) => {
+    // If it's a leaf node (has a field but no children), keep it
+    if (item.field && (!item.children || item.children.length === 0)) {
+      filteredItems.push({ ...item });
+      return filteredItems;
+    }
+    
+    // If it's a group with children, process its children
+    if (item.children && item.children.length > 0) {
+      const filteredChildren = filterEmptyGroups(item.children);
+      
+      // Only include this group if it has non-empty children after filtering
+      if (filteredChildren.length > 0) {
+        filteredItems.push({
+          ...item,
+          children: filteredChildren
+        });
+      }
+    }
+    
+    return filteredItems;
+  }, []);
+}

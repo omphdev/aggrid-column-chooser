@@ -1,6 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { ColumnItem } from '../../types';
 import { handleDragStartForAvailable, handleDragStartForSelected } from '../../utils/dragUtils/operations';
+import { countLeafNodes } from '../../utils/columnUtils';
 
 interface TreeItemProps {
   item: ColumnItem;
@@ -15,6 +16,7 @@ interface TreeItemProps {
   source: 'available' | 'selected';
   onDoubleClick?: (item: ColumnItem) => void;
   countChildren?: boolean;
+  enableReordering?: boolean;
 }
 
 const TreeItem: React.FC<TreeItemProps> = ({
@@ -29,7 +31,8 @@ const TreeItem: React.FC<TreeItemProps> = ({
   getSelectedIds,
   source,
   onDoubleClick,
-  countChildren = true
+  countChildren = true,
+  enableReordering = false
 }) => {
   const itemRef = useRef<HTMLDivElement>(null);
   const hasChildren = item.children && item.children.length > 0;
@@ -55,10 +58,10 @@ const TreeItem: React.FC<TreeItemProps> = ({
     e.stopPropagation();
     console.log('Starting drag from TreeItem', item.id);
     
-    // Get selected IDs
+    // Get selected IDs - pass as string array
     const selectedIds = getSelectedIds();
     
-    // Use our refactored handler
+    // Use the relevant drag handler based on source
     if (source === 'available') {
       handleDragStartForAvailable(e, item, selectedIds);
     } else {
@@ -75,25 +78,35 @@ const TreeItem: React.FC<TreeItemProps> = ({
     e.stopPropagation();
     
     if (onDragOver && itemRef.current) {
-      // Add debug output to understand what's happening
-      console.log(`Drag over TreeItem: ${item.id}, ${item.name}`);
       onDragOver(e, itemRef.current, item.id);
     }
   };
+  
+  // Apply visual cue for reordering
+  useEffect(() => {
+    if (itemRef.current && enableReordering) {
+      // Add visual cue when reordering is enabled
+      itemRef.current.classList.add('reorderable');
+      
+      return () => {
+        if (itemRef.current) {
+          itemRef.current.classList.remove('reorderable');
+        }
+      };
+    }
+  }, [enableReordering]);
 
-  // Count children if requested and item has children
+  // Count leaf nodes (only actual columns, not groups)
   const childCount = countChildren && hasChildren 
-    ? item.children!.reduce((count, child) => 
-        count + (child.children && child.children.length > 0 
-          ? child.children.length 
-          : 1), 0)
+    ? countLeafNodes(item.children!)
     : 0;
   
   // Determine CSS classes
   const itemClasses = [
     'tree-item',
     item.selected ? 'selected' : '',
-    hasChildren ? 'has-children' : ''
+    hasChildren ? 'has-children' : '',
+    enableReordering ? 'reorderable' : ''
   ].filter(Boolean).join(' ');
   
   return (
@@ -111,7 +124,15 @@ const TreeItem: React.FC<TreeItemProps> = ({
         style={{ paddingLeft: `${depth * 16}px` }}
         data-item-id={item.id}
         data-item-index={index}
+        data-source={source}
       >
+        {/* Reorder handle if reordering is enabled */}
+        {enableReordering && (
+          <div className="reorder-handle" title="Drag to reorder">
+            <span className="drag-icon">⋮⋮</span>
+          </div>
+        )}
+        
         {/* Expand/collapse button for groups */}
         {hasChildren && (
           <button 
@@ -152,6 +173,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
               source={source}
               onDoubleClick={onDoubleClick}
               countChildren={countChildren}
+              enableReordering={enableReordering}
             />
           ))}
         </div>

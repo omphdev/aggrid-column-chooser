@@ -1,9 +1,28 @@
-import { useState, useCallback } from 'react';
-import { findDropPosition, parseDragData } from '../../../utils/dragUtils/operations';
+import { useState, useCallback, useEffect } from 'react';
+import { parseDragData } from '../../../utils/dragUtils/operations';
 import { showInsertIndicator, hideAll } from '../../../utils/dragUtils/silhouette';
 
 export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
   const [activeDropTarget, setActiveDropTarget] = useState<string | null>(null);
+  const [insertBefore, setInsertBefore] = useState<boolean>(true);
+  
+  // Clear all drop indicators
+  const clearDropIndicators = useCallback(() => {
+    document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
+      el.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    document.querySelectorAll('.empty-message.drag-over').forEach(el => {
+      el.classList.remove('drag-over');
+    });
+    hideAll();
+  }, []);
+  
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      clearDropIndicators();
+    };
+  }, [clearDropIndicators]);
   
   // Handle drag over for items
   const handleItemDragOver = useCallback((
@@ -17,47 +36,72 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Check if this is a valid drop target
+    // Check if we should allow the drop
     const dragData = parseDragData(e);
     if (!dragData) return;
     
-    console.log('Drag over item:', itemId);
-    
     // Don't show indicator if dragging onto itself
-    if (dragData.ids.length === 1 && dragData.ids[0] === itemId) return;
+    if (dragData.ids.length === 1 && dragData.ids[0] === itemId) {
+      clearDropIndicators();
+      return;
+    }
     
-    // Calculate whether to insert before or after with a 1/3 - 2/3 split for better accuracy
-    // This gives a larger target area at the top and bottom of each item
+    // Clear previous indicators
+    clearDropIndicators();
+    
+    // Calculate mouse position within the element
     const rect = element.getBoundingClientRect();
     const mouseRelativePos = (e.clientY - rect.top) / rect.height;
-    const insertBefore = mouseRelativePos < 0.33; // Use top third for "insert before"
+    const newInsertBefore = mouseRelativePos < 0.5; 
     
-    // Show insertion indicator
-    showInsertIndicator(element, insertBefore);
+    // Set visual indicators
+    if (newInsertBefore) {
+      element.classList.add('drag-over-top');
+    } else {
+      element.classList.add('drag-over-bottom');
+    }
     
-    // Update active drop target
+    // Update state
     setActiveDropTarget(itemId);
-  }, []);
+    setInsertBefore(newInsertBefore);
+    
+    console.log(`Drag over: target=${itemId}, insertBefore=${newInsertBefore}`);
+  }, [clearDropIndicators]);
   
   // Handle drag leave
   const handleDragLeave = useCallback(() => {
     // Use a small timeout to avoid flickering when moving between items
     setTimeout(() => {
-      if (!document.activeElement || 
-          (!document.activeElement.classList.contains('tree-item') && 
-           !document.activeElement.classList.contains('flat-item'))) {
+      // Check if we're still over a valid drag target
+      const dragTargets = document.querySelectorAll('.tree-item:hover, .flat-item:hover');
+      if (dragTargets.length === 0) {
+        clearDropIndicators();
         setActiveDropTarget(null);
-        hideAll();
       }
     }, 50);
-  }, []);
+  }, [clearDropIndicators]);
   
-  // Handle container drag over
+  // Handle container drag over (empty areas)
   const handleContainerDragOver = useCallback((e: React.DragEvent) => {
     // Critical: Prevent default to enable drop
     e.preventDefault();
     e.stopPropagation();
-  }, []);
+    
+    const target = e.currentTarget as HTMLElement;
+    const emptyMessage = target.querySelector('.empty-message');
+    
+    // If there's an empty message and we're hovering over it
+    if (emptyMessage && emptyMessage.matches(':hover')) {
+      // Clear all other indicators
+      clearDropIndicators();
+      
+      // Add drag-over class to empty message
+      emptyMessage.classList.add('drag-over');
+      
+      // Reset active target since we're dropping on an empty area
+      setActiveDropTarget(null);
+    }
+  }, [clearDropIndicators]);
   
   // Handle drop with position information
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -66,31 +110,32 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
     
     console.log('Drop event triggered');
     
-    // Get the drop position
-    let dropPosition;
+    // Create enhanced event with drop position
+    const enhancedEvent = e as any;
     
     if (activeDropTarget) {
-      // Find the target element
-      const targetElement = document.querySelector(`[data-item-id="${activeDropTarget}"]`) as HTMLElement;
-      if (targetElement) {
-        dropPosition = findDropPosition(e, targetElement);
-      }
+      // If we have an active target, use it with our insert position
+      enhancedEvent.dropPosition = {
+        targetId: activeDropTarget,
+        insertBefore: insertBefore
+      };
+      console.log('Drop position:', enhancedEvent.dropPosition);
+    } else {
+      // If dropping in an empty area, default to appending at the end
+      enhancedEvent.dropPosition = { 
+        targetId: undefined,
+        insertBefore: false 
+      };
+      console.log('Dropping at the end (no target)');
     }
     
-    // Enhance the event with position information
-    const enhancedEvent = e as any;
-    if (dropPosition) {
-      enhancedEvent.dropPosition = dropPosition;
-      console.log('Drop position:', dropPosition);
-    }
-    
-    // Reset state
+    // Reset state and clean up
     setActiveDropTarget(null);
-    hideAll();
+    clearDropIndicators();
     
     // Call parent drop handler
     onDrop(enhancedEvent);
-  }, [activeDropTarget, onDrop]);
+  }, [activeDropTarget, insertBefore, onDrop, clearDropIndicators]);
 
   return {
     activeDropTarget,

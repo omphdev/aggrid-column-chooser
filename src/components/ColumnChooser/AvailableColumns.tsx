@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useColumnContext } from '../../contexts/ColumnContext';
 import TreeView from '../TreeView';
-import { countLeafNodes } from '../../utils/columnUtils';
+import { countLeafNodes, filterEmptyGroups } from '../../utils/columnUtils';
 
 interface AvailableColumnsProps {
   title?: string;
@@ -23,6 +23,12 @@ const AvailableColumns: React.FC<AvailableColumnsProps> = ({
   
   // Get the available columns from state
   const { availableColumns } = state;
+  
+  // Filter out empty groups for display
+  const filteredAvailableColumns = useMemo(() => 
+    filterEmptyGroups(availableColumns),
+    [availableColumns]
+  );
   
   // Get the selected count
   const selectedCount = getSelectedCount('available');
@@ -62,7 +68,7 @@ const AvailableColumns: React.FC<AvailableColumnsProps> = ({
   
   return (
     <TreeView
-      items={availableColumns}
+      items={filteredAvailableColumns}
       title={title}
       onDragStart={handleDragStart}
       onDrop={handleDrop}

@@ -44,9 +44,10 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
   // Handle drag start
   const handleDragStart = (e: React.DragEvent, item: any) => {
     // Drag handling is done in TreeView component
+    console.log(`Drag start in selected columns: ${item.id}`);
   };
   
-  // Handle drop
+  // Handle drop for reordering columns
   const handleDrop = (e: React.DragEvent) => {
     // Get the drag data from the event
     try {
@@ -58,9 +59,13 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
       
       if (data.source === 'available' && data.ids && data.ids.length > 0) {
         // Move items from available to selected
+        console.log('Moving items from available to selected');
         moveItemsToSelected(data.ids, dropPosition);
       } else if (data.source === 'selected' && data.ids && data.ids.length > 0) {
         // Reorder within the selected panel
+        console.log('Reordering items within selected panel');
+        console.log('Items to reorder:', data.ids);
+        console.log('Drop position:', dropPosition);
         reorderSelectedItems(data.ids, dropPosition);
       }
     } catch (err) {
@@ -142,6 +147,7 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
           source="selected"
           hideHeader={true}
           onDoubleClick={handleDoubleClick}
+          enableReordering={true} // Enable reordering functionality
         />
       </div>
     </div>

@@ -22,6 +22,7 @@ interface TreeViewProps {
   hideHeader?: boolean;
   onDoubleClick?: (item: ColumnItem) => void;
   countChildren?: boolean;
+  enableReordering?: boolean; // New prop for enabling reordering
 }
 
 const TreeView: React.FC<TreeViewProps> = ({
@@ -39,7 +40,8 @@ const TreeView: React.FC<TreeViewProps> = ({
   source,
   hideHeader = false,
   onDoubleClick,
-  countChildren = true
+  countChildren = true,
+  enableReordering = false // Default to false
 }) => {
   // Get all selected IDs for drag operations
   const getSelectedIds = useCallback(() => {
@@ -148,6 +150,7 @@ const TreeView: React.FC<TreeViewProps> = ({
                 getSelectedIds={getSelectedIds}
                 source={source}
                 onDoubleClick={onDoubleClick}
+                enableReordering={enableReordering}
               />
             ))
           ) : (
@@ -167,11 +170,12 @@ const TreeView: React.FC<TreeViewProps> = ({
                 source={source}
                 onDoubleClick={onDoubleClick}
                 countChildren={countChildren}
+                enableReordering={enableReordering}
               />
             ))
           )
         ) : (
-          <div className="empty-message">Drag columns here</div>
+          <div className="empty-message drag-target">Drag columns here</div>
         )}
       </div>
     </div>

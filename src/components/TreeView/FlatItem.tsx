@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { ColumnItem } from '../../types';
 import { handleDragStartForSelected, handleDragStartForAvailable } from '../../utils/dragUtils/operations';
 
@@ -15,6 +15,7 @@ interface FlatItemProps {
   getSelectedIds: () => string[];
   source: 'available' | 'selected';
   onDoubleClick?: (item: ColumnItem) => void;
+  enableReordering?: boolean;
 }
 
 const FlatItem: React.FC<FlatItemProps> = ({
@@ -29,7 +30,8 @@ const FlatItem: React.FC<FlatItemProps> = ({
   showGroupLabels = false,
   getSelectedIds,
   source,
-  onDoubleClick
+  onDoubleClick,
+  enableReordering = false
 }) => {
   const itemRef = useRef<HTMLDivElement>(null);
   
@@ -50,7 +52,12 @@ const FlatItem: React.FC<FlatItemProps> = ({
   const handleItemDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
     
-    // Get the selected IDs
+    // Add dragging class to element
+    if (itemRef.current) {
+      itemRef.current.classList.add('dragging');
+    }
+    
+    // Get the selected IDs as a string array
     const selectedIds = getSelectedIds();
     
     // Use the appropriate function based on source
@@ -61,6 +68,16 @@ const FlatItem: React.FC<FlatItemProps> = ({
     }
     
     onDragStart(e, item);
+    
+    // Clean up dragging class on drag end
+    const handleDragEnd = () => {
+      if (itemRef.current) {
+        itemRef.current.classList.remove('dragging');
+      }
+      document.removeEventListener('dragend', handleDragEnd);
+    };
+    
+    document.addEventListener('dragend', handleDragEnd);
   };
   
   // Handle dragover
@@ -69,8 +86,6 @@ const FlatItem: React.FC<FlatItemProps> = ({
     e.stopPropagation();
     
     if (onDragOver && itemRef.current) {
-      // Add debug output
-      console.log(`Drag over FlatItem: ${item.id}, ${item.name}`);
       onDragOver(e, itemRef.current, item.id);
     }
   };
@@ -78,7 +93,8 @@ const FlatItem: React.FC<FlatItemProps> = ({
   // Determine CSS classes
   const itemClasses = [
     'flat-item',
-    item.selected ? 'selected' : ''
+    item.selected ? 'selected' : '',
+    enableReordering ? 'reorderable' : '',
   ].filter(Boolean).join(' ');
   
   return (
@@ -95,7 +111,15 @@ const FlatItem: React.FC<FlatItemProps> = ({
       data-item-index={index}
       data-flat-index={flatIndex !== undefined ? flatIndex : index}
       data-group={groupName}
+      data-source={source}
     >
+      {/* Reorder handle if reordering is enabled */}
+      {enableReordering && (
+        <div className="reorder-handle" title="Drag to reorder">
+          <span className="drag-icon">⋮⋮</span>
+        </div>
+      )}
+      
       {/* Show group label if enabled */}
       {showGroupLabels && groupName && (
         <div className="group-label">{groupName}</div>

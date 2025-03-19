@@ -233,3 +233,104 @@
   background-color: #1890ff !important;
   box-shadow: 0 0 8px rgba(24, 144, 255, 0.8) !important;
 }
+
+/* Add these styles to src/components/TreeView/TreeView.css */
+
+/* Styles for reorderable items */
+.reorderable {
+  cursor: move !important; /* Show move cursor */
+  display: flex !important;
+  align-items: center;
+  position: relative;
+  transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.reorderable:hover {
+  background-color: #f0f7ff !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  z-index: 1;
+}
+
+.reorderable:active {
+  transform: scale(0.99);
+  opacity: 0.8;
+}
+
+/* Drag icon for reordering */
+.reorder-handle {
+  cursor: grab;
+  margin-right: 6px;
+  color: #bbb;
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.reorderable:hover .reorder-handle {
+  color: #666;
+}
+
+.reorderable.dragging {
+  opacity: 0.5;
+  background-color: #e6f7ff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Enhance drop indicators for reordering */
+.tree-item.drag-over-top, 
+.flat-item.drag-over-top {
+  border-top: 2px solid #1890ff !important;
+  padding-top: 4px !important;
+  margin-top: 0 !important;
+  position: relative;
+}
+
+.tree-item.drag-over-bottom, 
+.flat-item.drag-over-bottom {
+  border-bottom: 2px solid #1890ff !important;
+  padding-bottom: 4px !important;
+  margin-bottom: 0 !important;
+  position: relative;
+}
+
+.tree-item.drag-over-top::before,
+.flat-item.drag-over-top::before,
+.tree-item.drag-over-bottom::before,
+.flat-item.drag-over-bottom::before {
+  content: '';
+  position: absolute;
+  height: 6px;
+  width: 6px;
+  background: #1890ff;
+  border-radius: 50%;
+  z-index: 10;
+}
+
+.tree-item.drag-over-top::before,
+.flat-item.drag-over-top::before {
+  top: -4px;
+  left: 10px;
+}
+
+.tree-item.drag-over-bottom::before,
+.flat-item.drag-over-bottom::before {
+  bottom: -4px;
+  left: 10px;
+}
+
+/* Improved empty state drop area */
+.empty-message.drag-target {
+  border: 2px dashed #d9d9d9;
+  border-radius: 4px;
+  padding: 16px;
+  text-align: center;
+  color: #999;
+  transition: all 0.3s ease;
+}
+
+.empty-message.drag-target.drag-over {
+  border-color: #1890ff;
+  background-color: rgba(24, 144, 255, 0.05);
+  color: #1890ff;
+}

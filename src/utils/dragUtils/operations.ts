@@ -4,22 +4,21 @@ import { showSilhouette, hideAll } from './silhouette';
 /**
  * Handle drag start with silhouette effect
  */
-export function handleDragStart(
+function handleDragStart(
   e: React.DragEvent,
   item: ColumnItem,
   source: 'available' | 'selected',
-  selectedIds: string[] = []
+  ids: string[]
 ) {
-  console.log('Starting drag operation', { source, id: item.id });
+  console.log(`Starting drag: source=${source}, ids=${ids.join(',')}`);
   
   // CRITICAL: Set effectAllowed
   e.dataTransfer.effectAllowed = 'move';
   
-  // Determine which IDs to drag
-  const ids = item.selected && selectedIds.length > 0 ? selectedIds : [item.id];
+  // Create text representation based on number of items
   const text = ids.length > 1 ? `${ids.length} columns` : item.name;
   
-  // Set drag data (crucial part!)
+  // Create drag data with source information
   const dragData = JSON.stringify({
     ids,
     source,
@@ -27,9 +26,8 @@ export function handleDragStart(
   });
   
   e.dataTransfer.setData('text/plain', dragData);
-  console.log('Set drag data:', dragData);
   
-  // Create transparent drag image
+  // Use empty drag image to hide browser default
   const emptyImg = document.createElement('div');
   emptyImg.style.position = 'absolute';
   emptyImg.style.top = '-9999px';
@@ -41,7 +39,7 @@ export function handleDragStart(
     setTimeout(() => document.body.removeChild(emptyImg), 100);
   }
   
-  // Show the silhouette
+  // Show custom silhouette
   showSilhouette(text, e.clientX, e.clientY);
   
   // Mark the element as being dragged
@@ -49,11 +47,14 @@ export function handleDragStart(
   element.setAttribute('data-dragging', 'true');
   
   // Clean up on drag end
-  element.addEventListener('dragend', () => {
-    console.log('Drag ended');
+  const handleDragEnd = () => {
+    console.log('Drag operation ended');
     element.removeAttribute('data-dragging');
     hideAll();
-  }, { once: true });
+    document.removeEventListener('dragend', handleDragEnd);
+  };
+  
+  document.addEventListener('dragend', handleDragEnd);
 }
 
 /**
@@ -67,16 +68,8 @@ export function handleDragStartForAvailable(
   item: ColumnItem,
   availableItems: string[] | ColumnItem[]
 ) {
-  // Determine if we have an array of IDs or column items
-  let selectedIds: string[];
-  
-  if (availableItems.length > 0 && typeof availableItems[0] === 'string') {
-    // If we already have an array of strings, use it directly
-    selectedIds = availableItems as string[];
-  } else {
-    // If we have column items, extract selected IDs
-    selectedIds = getSelectedItems(availableItems as ColumnItem[]);
-  }
+  // Extract IDs
+  const selectedIds = getSelectedIds(availableItems);
   
   // Use the selected IDs if item is selected, or just this item's ID
   const ids = item.selected && selectedIds.length > 0 ? selectedIds : [item.id];
@@ -94,16 +87,8 @@ export function handleDragStartForSelected(
   item: ColumnItem,
   selectedItems: string[] | ColumnItem[]
 ) {
-  // Determine if we have an array of IDs or column items
-  let selectedIds: string[];
-  
-  if (selectedItems.length > 0 && typeof selectedItems[0] === 'string') {
-    // If we already have an array of strings, use it directly
-    selectedIds = selectedItems as string[];
-  } else {
-    // If we have column items, extract selected IDs
-    selectedIds = getSelectedItems(selectedItems as ColumnItem[]);
-  }
+  // Extract IDs
+  const selectedIds = getSelectedIds(selectedItems);
   
   // Use the selected IDs if item is selected, or just this item's ID
   const ids = item.selected && selectedIds.length > 0 ? selectedIds : [item.id];
@@ -278,9 +263,62 @@ export function findDropPosition(
   // This gives a more natural feel when dragging items as the "insert before" area
   // at the top of each item is larger than the default 50/50 split
   const mouseRelativePos = (mouseY - rect.top) / rect.height;
-  const insertBefore = mouseRelativePos < 0.33; // Use top third for "insert before"
+  const insertBefore = mouseRelativePos < 0.5; // Use 50/50 split for now
   
   console.log(`Drop position calculated: targetId=${targetId}, insertBefore=${insertBefore}, relativePos=${mouseRelativePos.toFixed(2)}`);
   
+  // Add visual indicators
+  if (insertBefore) {
+    element.classList.add('drag-over-top');
+    element.classList.remove('drag-over-bottom');
+  } else {
+    element.classList.add('drag-over-bottom');
+    element.classList.remove('drag-over-top');
+  }
+  
   return { targetId, insertBefore };
+}
+
+export function clearDropPositionIndicators() {
+  document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(element => {
+    element.classList.remove('drag-over-top', 'drag-over-bottom');
+  });
+}
+
+export function enhanceDropHandling(handleDrop: (e: React.DragEvent) => void) {
+  return (e: React.DragEvent) => {
+    // Clear visual indicators before processing drop
+    clearDropPositionIndicators();
+    
+    // Call original handler
+    handleDrop(e);
+  };
+}
+
+/**
+  * Get selected IDs from a tree structure or array of IDs
+ */
+export function getSelectedIds(items: ColumnItem[] | string[]): string[] {
+  // If already a string array, return it directly
+  if (items.length > 0 && typeof items[0] === 'string') {
+    return items as string[];
+  }
+  
+  // Otherwise extract IDs from column items
+  const selectedIds: string[] = [];
+  
+  const collectSelectedIds = (itemList: ColumnItem[]) => {
+    for (const item of itemList) {
+      if (item.selected) {
+        selectedIds.push(item.id);
+      }
+      
+      if (item.children && item.children.length > 0) {
+        collectSelectedIds(item.children);
+      }
+    }
+  };
+  
+  collectSelectedIds(items as ColumnItem[]);
+  return selectedIds;
 }
