@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { ColumnItem } from '../../types';
 import { countLeafNodes } from '../../utils/columnUtils';
 
@@ -16,6 +16,7 @@ interface TreeItemProps {
   onDoubleClick?: (item: ColumnItem) => void;
   countChildren?: boolean;
   enableReordering?: boolean;
+  selectedIds?: string[]; // Add selectedIds prop to check children
 }
 
 const TreeItem: React.FC<TreeItemProps> = ({
@@ -31,7 +32,8 @@ const TreeItem: React.FC<TreeItemProps> = ({
   source,
   onDoubleClick,
   countChildren = true,
-  enableReordering = false
+  enableReordering = false,
+  selectedIds = []
 }) => {
   const itemRef = useRef<HTMLDivElement>(null);
   const hasChildren = item.children && item.children.length > 0;
@@ -97,6 +99,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
         data-item-id={item.id}
         data-item-index={index}
         data-source={source}
+        data-selected={isSelected ? 'true' : 'false'} // Add data attribute for selection state
       >
         {/* Reorder handle if reordering is enabled */}
         {enableReordering && (
@@ -136,7 +139,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
               item={child}
               depth={depth + 1}
               index={childIndex}
-              isSelected={isSelected}
+              isSelected={selectedIds.includes(child.id)} // Check each child individually
               onDragStart={onDragStart}
               onExpand={onExpand}
               onSelect={onSelect}
@@ -146,6 +149,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
               onDoubleClick={onDoubleClick}
               countChildren={countChildren}
               enableReordering={enableReordering}
+              selectedIds={selectedIds} // Pass selectedIds to children
             />
           ))}
         </div>

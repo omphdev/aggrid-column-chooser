@@ -114,7 +114,7 @@ const TreeView: React.FC<TreeViewProps> = ({
     document.addEventListener('dragend', handleDragEnd);
   }, [onDragStart, source]);
   
-  // Check if an item is selected
+  // Check if an item is selected - this is the key function for selection state
   const isItemSelected = useCallback((id: string) => {
     return selectedIds.includes(id);
   }, [selectedIds]);
@@ -220,6 +220,7 @@ const TreeView: React.FC<TreeViewProps> = ({
                 onDoubleClick={handleItemDoubleClick}
                 countChildren={countChildren}
                 enableReordering={enableReordering}
+                selectedIds={selectedIds} // Pass selectedIds to enable checking children
               />
             ))
           )

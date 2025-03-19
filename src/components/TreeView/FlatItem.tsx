@@ -85,6 +85,7 @@ const FlatItem: React.FC<FlatItemProps> = ({
       data-flat-index={flatIndex !== undefined ? flatIndex : index}
       data-group={groupName}
       data-source={source}
+      data-selected={isSelected ? 'true' : 'false'} // Add data attribute for selection state
     >
       {/* Reorder handle if reordering is enabled */}
       {enableReordering && (

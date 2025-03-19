@@ -7,6 +7,8 @@ import { generateMockColumnDefinitions, generateMockData } from './utils/mockDat
 import useDashboardState from './hooks/useDashboardState';
 import dashboardStateService from './services/dashboardStateService';
 import './App.css';
+// Import selection styles to ensure they're loaded
+import './components/TreeView/SelectionStyles.css';
 
 // Main App component demonstrating how a consumer would use this
 const App: React.FC = () => {

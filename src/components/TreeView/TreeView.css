@@ -1,4 +1,4 @@
-/* Make sure these essential styles are present and not overridden */
+/* Essential TreeView Styles with Selection Fix */
 
 .tree-view {
   height: 100%;
@@ -72,6 +72,7 @@
   position: relative;
 }
 
+/* Base styles for tree and flat items */
 .tree-item,
 .flat-item {
   padding: 6px 8px;
@@ -85,43 +86,80 @@
   transition: background-color 0.2s ease, margin 0.15s ease-out;
 }
 
-/* Enhanced styling for selected items */
-.tree-item.selected,
-.flat-item.selected {
+/* FIXED SELECTION STYLES */
+/* Use attribute selectors for higher specificity */
+
+/* Generic selection style */
+.tree-item.selected, 
+.flat-item.selected,
+.tree-item[data-selected="true"], 
+.flat-item[data-selected="true"] {
   background-color: #e6f7ff !important;
   color: #1890ff !important;
   font-weight: 500 !important;
   border-left: 3px solid #1890ff !important;
+  padding-left: 5px !important; /* 8px - 3px border */
+}
+
+/* Specific selection styles by source */
+.tree-view[data-source="available"] .tree-item.selected,
+.tree-view[data-source="available"] .flat-item.selected,
+.tree-view[data-source="available"] .tree-item[data-selected="true"],
+.tree-view[data-source="available"] .flat-item[data-selected="true"] {
+  background-color: #e6f7ff !important;
+  color: #1890ff !important;
+  font-weight: 500 !important;
+  border-left: 3px solid #1890ff !important;
+  padding-left: 5px !important;
   box-shadow: 0 0 0 1px rgba(24, 144, 255, 0.1) !important;
 }
 
-/* Style for group items */
+.tree-view[data-source="selected"] .tree-item.selected,
+.tree-view[data-source="selected"] .flat-item.selected,
+.tree-view[data-source="selected"] .tree-item[data-selected="true"],
+.tree-view[data-source="selected"] .flat-item[data-selected="true"] {
+  background-color: #e6f7ff !important;
+  color: #1890ff !important;
+  font-weight: 500 !important;
+  border-left: 3px solid #1890ff !important;
+  padding-left: 5px !important;
+  box-shadow: 0 0 0 1px rgba(24, 144, 255, 0.1) !important;
+}
+
+/* Parent-child selection independence */
+.tree-item.selected .tree-item:not(.selected),
+.tree-item[data-selected="true"] .tree-item:not([data-selected="true"]) {
+  background-color: white !important;
+  color: inherit !important;
+  font-weight: normal !important;
+  border-left: none !important;
+  padding-left: 8px !important;
+  box-shadow: none !important;
+}
+
+/* Group item styles */
 .tree-item.has-children {
   background-color: #f5f5f5;
   font-weight: 500;
-  position: relative;
 }
 
-.tree-item.has-children:after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 100%;
-  border-left: 3px solid transparent;
-  pointer-events: none;
-  transition: all 0.2s;
-}
-
-.tree-item.has-children:hover:after {
-  border-left-color: #1890ff;
-}
-
-/* Selected group item */
-.tree-item.has-children.selected {
+.tree-item.has-children.selected,
+.tree-item.has-children[data-selected="true"] {
   background-color: #e6f7ff !important;
   border-left: 3px solid #1890ff !important;
+}
+
+/* Hover states */
+.tree-item:hover:not(.selected):not([data-selected="true"]),
+.flat-item:hover:not(.selected):not([data-selected="true"]) {
+  background-color: #f9f9f9;
+}
+
+.tree-item.selected:hover,
+.flat-item.selected:hover,
+.tree-item[data-selected="true"]:hover,
+.flat-item[data-selected="true"]:hover {
+  background-color: #d4edff !important;
 }
 
 /* Group count badge */
@@ -132,31 +170,27 @@
   opacity: 0.8;
 }
 
-.tree-item:hover,
-.flat-item:hover {
-  background-color: #f9f9f9;
-}
-
-/* Drag styles */
-.tree-item.dragging,
-.flat-item.dragging {
-  opacity: 0.6;
-  background-color: #f0f0f0;
-  border: 1px dashed #1890ff;
-}
-
+/* Expand button styling */
 .expand-button {
   cursor: pointer;
   margin-right: 5px;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 16px;
   height: 16px;
   text-align: center;
-  line-height: 14px;
+  line-height: 1;
   border: 1px solid #ccc;
   border-radius: 2px;
   background-color: #f0f0f0;
   font-size: 12px;
+}
+
+.expand-button:hover {
+  background-color: #e6f7ff;
+  border-color: #1890ff;
+  color: #1890ff;
 }
 
 .item-name {
@@ -166,15 +200,17 @@
   white-space: nowrap;
 }
 
-.group-label {
-  font-size: 11px;
-  color: #999;
-  margin-right: 8px;
-  background-color: #f5f5f5;
-  padding: 2px 4px;
-  border-radius: 3px;
+/* Adjust padding for tree items based on depth */
+.tree-item-container .tree-children .tree-item {
+  padding-left: 16px;
 }
 
+.tree-item-container .tree-children .tree-item.selected,
+.tree-item-container .tree-children .tree-item[data-selected="true"] {
+  padding-left: 13px !important; /* 16px - 3px border */
+}
+
+/* Empty state styling */
 .empty-message {
   padding: 15px;
   text-align: center;
@@ -195,23 +231,53 @@
   color: #1890ff;
 }
 
+/* Tree children container */
 .tree-children {
-  margin-left: 10px;
+  position: relative;
+}
+
+/* Style for when dragging */
+.tree-item.dragging,
+.flat-item.dragging {
+  opacity: 0.6;
+  background-color: #f0f0f0;
+  border: 1px dashed #1890ff;
+}
+
+/* Style for when item is being dragged */
+.tree-item[data-dragging="true"],
+.flat-item[data-dragging="true"] {
+  opacity: 0.6;
+  background-color: #f0f0f0;
+}
+
+/* Empty area drop styles */
+.tree-view .empty-drop-area {
+  border: 2px dashed #ccc;
+  border-radius: 4px;
+  padding: 20px;
+  text-align: center;
+  color: #999;
+  margin: 10px;
+}
+
+.tree-view .empty-drop-area.drag-over {
+  border-color: #1890ff;
+  background-color: rgba(24, 144, 255, 0.05);
+}
+
+/* Drag spacing - makes space for the insertion indicator */
+.drag-spacing {
+  transition: margin 0.15s ease-out !important;
 }
 
 /* Drag position indicators */
-.tree-item.drag-over-top {
-  border-top: 2px solid #1890ff;
-}
-
-.tree-item.drag-over-bottom {
-  border-bottom: 2px solid #1890ff;
-}
-
+.tree-item.drag-over-top,
 .flat-item.drag-over-top {
   border-top: 2px solid #1890ff;
 }
 
+.tree-item.drag-over-bottom,
 .flat-item.drag-over-bottom {
   border-bottom: 2px solid #1890ff;
 }
@@ -229,11 +295,6 @@
 .tree-item.drag-over,
 .flat-item.drag-over {
   background-color: rgba(24, 144, 255, 0.1);
-}
-
-/* Drag spacing - makes space for the insertion indicator */
-.drag-spacing {
-  transition: margin 0.15s ease-out !important;
 }
 
 /* Enhanced drop indicator styles */
@@ -324,20 +385,4 @@
 .flat-item.drag-over-bottom::before {
   bottom: -4px;
   left: 10px;
-}
-
-/* Improved empty state drop area */
-.empty-message.drag-target {
-  border: 2px dashed #d9d9d9;
-  border-radius: 4px;
-  padding: 16px;
-  text-align: center;
-  color: #999;
-  transition: all 0.3s ease;
-}
-
-.empty-message.drag-target.drag-over {
-  border-color: #1890ff;
-  background-color: rgba(24, 144, 255, 0.05);
-  color: #1890ff;
 }

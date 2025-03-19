@@ -1,6 +1,7 @@
 import React from 'react';
 import { ColumnItem } from '../../types';
 import TreeView from '../TreeView';
+import './AvailableColumns.css'; // Add this CSS import
 
 interface AvailableColumnsProps {
   columns: ColumnItem[];
@@ -79,23 +80,25 @@ const AvailableColumns: React.FC<AvailableColumnsProps> = ({
   };
   
   return (
-    <TreeView
-      items={columns}
-      selectedIds={selectedIds}
-      title={title}
-      onDragStart={handleDragStart}
-      onDrop={handleDrop}
-      toggleExpand={toggleExpand}
-      toggleSelect={toggleSelect}
-      onSelectAll={selectAll}
-      onClearSelection={clearSelection}
-      selectedCount={getSelectedCount()}
-      totalCount={leafCount}
-      flatView={false} // Available columns are always in tree view
-      source="available"
-      onDoubleClick={handleDoubleClick}
-      countChildren={true}
-    />
+    <div className="available-columns-container">
+      <TreeView
+        items={columns}
+        selectedIds={selectedIds}
+        title={title}
+        onDragStart={handleDragStart}
+        onDrop={handleDrop}
+        toggleExpand={toggleExpand}
+        toggleSelect={toggleSelect}
+        onSelectAll={selectAll}
+        onClearSelection={clearSelection}
+        selectedCount={getSelectedCount()}
+        totalCount={leafCount}
+        flatView={false} // Available columns are always in tree view
+        source="available"
+        onDoubleClick={handleDoubleClick}
+        countChildren={true}
+      />
+    </div>
   );
 };
 
