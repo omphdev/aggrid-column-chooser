@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { ColumnItem } from '../../types';
 
 interface FlatItemProps {
@@ -15,6 +15,9 @@ interface FlatItemProps {
   source: 'available' | 'selected';
   onDoubleClick?: (item: ColumnItem) => void;
   enableReordering?: boolean;
+  onRemoveFromGroup?: (columnIds: string[]) => void;
+  canDragToGroup?: boolean; // New prop to enable drag-to-group
+  groupId?: string; // The group this item belongs to, if any
 }
 
 const FlatItem: React.FC<FlatItemProps> = ({
@@ -30,9 +33,13 @@ const FlatItem: React.FC<FlatItemProps> = ({
   showGroupLabels = false,
   source,
   onDoubleClick,
-  enableReordering = false
+  enableReordering = false,
+  onRemoveFromGroup,
+  canDragToGroup = true,
+  groupId
 }) => {
   const itemRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
   
   // Handle click for selection
   const handleClick = (e: React.MouseEvent) => {
@@ -47,10 +54,35 @@ const FlatItem: React.FC<FlatItemProps> = ({
     }
   };
   
-  // Handle drag start - simplified to just pass to parent
+  // Handle drag start - enhanced to include group info
   const handleItemDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
+    
+    // Set dragging state
+    setIsDragging(true);
+    
+    // Add source group information to the drag data
+    const dragData = {
+      ids: [item.id],
+      source,
+      itemName: item.name,
+      sourceGroupId: groupId // Include source group if applicable
+    };
+    
+    // Set drag data
+    e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+    e.dataTransfer.effectAllowed = 'move';
+    
+    // Call parent drag start handler
     onDragStart(e, item);
+    
+    // Clean up on drag end
+    const handleDragEnd = () => {
+      setIsDragging(false);
+      document.removeEventListener('dragend', handleDragEnd);
+    };
+    
+    document.addEventListener('dragend', handleDragEnd);
   };
   
   // Handle dragover
@@ -63,11 +95,22 @@ const FlatItem: React.FC<FlatItemProps> = ({
     }
   };
   
+  // Handle remove from group
+  const handleRemoveFromGroup = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onRemoveFromGroup) {
+      onRemoveFromGroup([item.id]);
+    }
+  };
+  
   // Determine CSS classes
   const itemClasses = [
     'flat-item',
     isSelected ? 'selected' : '',
     enableReordering ? 'reorderable' : '',
+    groupName ? 'grouped-item' : '',
+    isDragging ? 'dragging' : '',
+    canDragToGroup ? 'can-drag-to-group' : ''
   ].filter(Boolean).join(' ');
   
   return (
@@ -85,7 +128,8 @@ const FlatItem: React.FC<FlatItemProps> = ({
       data-flat-index={flatIndex !== undefined ? flatIndex : index}
       data-group={groupName}
       data-source={source}
-      data-selected={isSelected ? 'true' : 'false'} // Add data attribute for selection state
+      data-selected={isSelected ? 'true' : 'false'}
+      data-group-id={groupId || ''}
     >
       {/* Reorder handle if reordering is enabled */}
       {enableReordering && (
@@ -101,6 +145,17 @@ const FlatItem: React.FC<FlatItemProps> = ({
       
       {/* Item name */}
       <span className="item-name">{item.name}</span>
+      
+      {/* Remove from group button if applicable */}
+      {onRemoveFromGroup && (
+        <button
+          className="remove-from-group-btn"
+          onClick={handleRemoveFromGroup}
+          title={`Remove from ${groupName || 'group'}`}
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 };

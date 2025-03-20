@@ -1,5 +1,5 @@
 import React from 'react';
-import { ColumnItem } from '../../types';
+import { ColumnItem, ColumnGroup } from '../../types';
 import AvailableColumns from './AvailableColumns';
 import SelectedColumns from './SelectedColumns';
 import useColumnManagement from '../../hooks/useColumnManagement';
@@ -9,21 +9,27 @@ interface ColumnChooserProps {
   availableColumns: ColumnItem[];
   selectedColumns: ColumnItem[];
   isFlatView: boolean;
+  columnGroups: ColumnGroup[];
   onSelectedColumnsChange: (columnIds: string[]) => void;
+  onColumnGroupsChange: (columnGroups: ColumnGroup[]) => void;
 }
 
 const ColumnChooser: React.FC<ColumnChooserProps> = ({
   availableColumns,
   selectedColumns,
   isFlatView,
-  onSelectedColumnsChange
+  columnGroups,
+  onSelectedColumnsChange,
+  onColumnGroupsChange
 }) => {
   // Use the column management hook for all operations
   const columnManagement = useColumnManagement({
     availableColumns,
     selectedColumns,
     isFlatView,
-    onSelectedColumnsChange
+    columnGroups,
+    onSelectedColumnsChange,
+    onColumnGroupsChange
   });
   
   return (
@@ -71,6 +77,14 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
           moveSelectedDown={columnManagement.moveSelectedDown}
           clearSelected={columnManagement.clearSelected}
           onDoubleClick={columnManagement.moveItemToAvailable}
+          columnGroups={columnGroups}
+          onColumnGroupsChange={columnManagement.updateColumnGroups}
+          onAddToGroup={columnManagement.addColumnsToGroup}
+          onRemoveFromGroup={columnManagement.removeColumnsFromGroup}
+          onCreateGroup={columnManagement.createColumnGroup}
+          onDeleteGroup={columnManagement.deleteColumnGroup}
+          onRenameGroup={columnManagement.renameColumnGroup}
+          onReorderGroups={columnManagement.reorderColumnGroups}
         />
       </div>
     </div>

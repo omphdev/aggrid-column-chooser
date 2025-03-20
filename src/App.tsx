@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
-import { ColumnProvider } from './services/ColumnProvider';
 import ColumnChooser from './components/ColumnChooser';
 import MainGrid from './components/MainGrid';
 import { initializeDragSilhouette, cleanupDragSilhouette } from './utils/dragUtils';
 import { generateMockColumnDefinitions, generateMockData } from './utils/mockData';
 import useDashboardState from './hooks/useDashboardState';
 import dashboardStateService from './services/dashboardStateService';
+import { ColumnGroup } from './types';
 import './App.css';
 // Import selection styles to ensure they're loaded
 import './components/TreeView/SelectionStyles.css';
@@ -21,8 +21,22 @@ const App: React.FC = () => {
     const columnDefinitions = generateMockColumnDefinitions();
     const mockData = generateMockData();
     
-    // Initialize the dashboard state with data
-    dashboardStateService.initialize(columnDefinitions, mockData);
+    // Create sample column groups
+    const initialColumnGroups: ColumnGroup[] = [
+      {
+        id: 'group1',
+        name: 'Key Metrics',
+        columnIds: ['column_1', 'column_2', 'column_3']
+      },
+      {
+        id: 'group2',
+        name: 'Performance Indicators',
+        columnIds: ['column_11', 'column_12', 'column_13']
+      }
+    ];
+    
+    // Initialize the dashboard state with data and column groups
+    dashboardStateService.initialize(columnDefinitions, mockData, initialColumnGroups);
     
     // Initialize drag and drop system
     initializeDragSilhouette();
@@ -60,6 +74,13 @@ const App: React.FC = () => {
     dashboardStateService.updateSelectedColumns(columnIds);
   };
   
+  // Handle column group changes
+  const handleColumnGroupsChange = (columnGroups: ColumnGroup[]) => {
+    console.log('Column groups changed:', columnGroups);
+    // Update the dashboard state with new column groups
+    dashboardStateService.updateColumnGroups(columnGroups);
+  };
+  
   return (
     <div className="app-container">
       <div className="app-layout">
@@ -79,7 +100,9 @@ const App: React.FC = () => {
             availableColumns={state.availableColumns}
             selectedColumns={state.selectedColumns}
             isFlatView={state.isFlatView}
+            columnGroups={state.columnGroups}
             onSelectedColumnsChange={handleSelectedColumnsChange}
+            onColumnGroupsChange={handleColumnGroupsChange}
           />
         </div>
       </div>

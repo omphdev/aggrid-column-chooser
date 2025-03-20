@@ -1,5 +1,5 @@
 import { BehaviorSubject } from 'rxjs';
-import { ColumnDefinition, ColumnItem } from '../types';
+import { ColumnDefinition, ColumnItem, ColumnGroup } from '../types';
 import { convertToTreeStructure, generateGridColumns, removeSelectedFromAvailable } from '../utils/columnUtils';
 
 // Dashboard state interface
@@ -18,6 +18,8 @@ export interface DashboardState {
   gridData: any[];
   // UI state
   isFlatView: boolean;
+  // Column groups (for organizing columns in the selected panel)
+  columnGroups: ColumnGroup[];
 }
 
 // Interface for state updates
@@ -35,7 +37,8 @@ const initialState: DashboardState = {
   selectedColumns: [],
   gridColumnDefs: [],
   gridData: [],
-  isFlatView: false
+  isFlatView: false,
+  columnGroups: []
 };
 
 // Dashboard state service class
@@ -73,8 +76,12 @@ class DashboardStateService {
     return updatedState;
   }
 
-  // Initialize with column definitions and optional data
-  initialize(columnDefinitions: ColumnDefinition[], data: any[] = []) {
+  // Initialize with column definitions, optional data, and column groups
+  initialize(
+    columnDefinitions: ColumnDefinition[], 
+    data: any[] = [],
+    columnGroups: ColumnGroup[] = []
+  ) {
     // Convert column definitions to tree structure for available columns
     const availableColumns = convertToTreeStructure(columnDefinitions);
     
@@ -84,13 +91,14 @@ class DashboardStateService {
       selectedColumnIds: [],
       selectedColumns: [],
       gridColumnDefs: [],
-      gridData: data
+      gridData: data,
+      columnGroups
     }, 'Initialize dashboard state');
   }
 
   // Update selected column IDs
   updateSelectedColumns(columnIds: string[]) {
-    const { columnDefinitions, availableColumns } = this.value;
+    const { columnDefinitions, availableColumns, columnGroups } = this.value;
     
     // Create a map for quick lookup
     const columnMap = new Map(
@@ -110,7 +118,7 @@ class DashboardStateService {
       });
     
     // Generate grid column definitions
-    const gridColumnDefs = generateGridColumns(selectedColumns);
+    const gridColumnDefs = generateGridColumnsWithGroups(selectedColumns, columnGroups);
     
     // Also update available columns to remove the selected ones
     const updatedAvailableColumns = removeSelectedFromAvailable(availableColumns, columnIds);
@@ -124,10 +132,83 @@ class DashboardStateService {
     }, 'Update selected columns');
   }
 
+  // Update column groups
+  updateColumnGroups(columnGroups: ColumnGroup[]) {
+    const { selectedColumns } = this.value;
+    
+    // Regenerate grid column definitions with the new groups
+    const gridColumnDefs = generateGridColumnsWithGroups(selectedColumns, columnGroups);
+    
+    // Update state
+    this.next({
+      columnGroups,
+      gridColumnDefs
+    }, 'Update column groups');
+  }
+
   // Toggle flat view
   toggleFlatView(isFlatView: boolean) {
     this.next({ isFlatView }, 'Toggle flat view');
   }
+}
+
+// Helper function to generate AG Grid column definitions with column groups
+function generateGridColumnsWithGroups(columns: ColumnItem[], columnGroups: ColumnGroup[]) {
+  // Create a map of column ID to column item for quick lookup
+  const columnMap = new Map<string, ColumnItem>();
+  columns.forEach(col => columnMap.set(col.id, col));
+  
+  // Create a map of column ID to group ID
+  const columnToGroupMap = new Map<string, string>();
+  columnGroups.forEach(group => {
+    group.columnIds.forEach(columnId => {
+      columnToGroupMap.set(columnId, group.id);
+    });
+  });
+  
+  // Prepare grid column structure
+  const groupedCols: any[] = [];
+  const ungroupedCols: any[] = [];
+  
+  // Process columns that belong to groups
+  columnGroups.forEach(group => {
+    const validColumnIds = group.columnIds.filter(id => columnMap.has(id));
+    
+    if (validColumnIds.length > 0) {
+      // Create a column group definition
+      const groupDef = {
+        headerName: group.name,
+        groupId: group.id,
+        children: validColumnIds.map(id => {
+          const col = columnMap.get(id)!;
+          return {
+            field: col.field,
+            headerName: col.name,
+            sortable: true,
+            filter: true,
+            columnGroupId: group.id
+          };
+        })
+      };
+      
+      groupedCols.push(groupDef);
+    }
+  });
+  
+  // Process columns that don't belong to any group
+  columns.forEach(col => {
+    if (!columnToGroupMap.has(col.id)) {
+      ungroupedCols.push({
+        field: col.field,
+        headerName: col.name,
+        sortable: true,
+        filter: true
+      });
+    }
+  });
+  
+  // Combine grouped and ungrouped columns
+  return [...groupedCols, ...ungroupedCols];
 }
 
 // Create and export singleton instance

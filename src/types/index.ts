@@ -5,6 +5,8 @@ export interface ColumnDefinition {
   hide?: boolean;
 }
 
+// Update the ColumnItem interface in src/types/index.ts
+
 export interface ColumnItem {
   id: string;
   name: string;
@@ -12,6 +14,15 @@ export interface ColumnItem {
   children?: ColumnItem[];
   expanded?: boolean;   // Whether a group is expanded
   selected?: boolean;   // Whether the item is selected
+  isGroup?: boolean;    // Whether this is a column group
+  groupId?: string;     // ID of the original group if this is a group
+  parentGroupId?: string; // ID of parent group this item belongs to, if any
+}
+
+export interface ColumnGroup {
+  id: string;
+  name: string;
+  columnIds: string[];
 }
 
 export interface DragItem {
@@ -19,6 +30,8 @@ export interface DragItem {
   source: 'available' | 'selected';
   itemName: string;
   ids: string[];
+  type?: 'column' | 'group';  // Type of the dragged item
+  groupId?: string;           // ID of the group if dragging a group
 }
 
 export interface DropPosition {
@@ -61,4 +74,14 @@ export interface TreeViewUIState {
 export interface SelectionState {
   selectedIds: Set<string>;
   lastSelectedId: string | null;
+}
+
+// Props for the main ColumnChooser component
+export interface ColumnChooserProps {
+  availableColumns: ColumnItem[];
+  selectedColumns: ColumnItem[];
+  isFlatView: boolean;
+  columnGroups: ColumnGroup[];
+  onSelectedColumnsChange: (columnIds: string[]) => void;
+  onColumnGroupsChange: (columnGroups: ColumnGroup[]) => void;
 }
