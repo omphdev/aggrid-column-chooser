@@ -167,39 +167,46 @@ function generateGridColumnsWithGroups(columns: ColumnItem[], columnGroups: Colu
     });
   });
   
-  // Prepare grid column structure
-  const groupedCols: any[] = [];
-  const ungroupedCols: any[] = [];
+  // Create a map of group ID to group for quick lookup
+  const groupMap = new Map<string, ColumnGroup>();
+  columnGroups.forEach(group => groupMap.set(group.id, group));
   
-  // Process columns that belong to groups
-  columnGroups.forEach(group => {
-    const validColumnIds = group.columnIds.filter(id => columnMap.has(id));
-    
-    if (validColumnIds.length > 0) {
-      // Create a column group definition
-      const groupDef = {
-        headerName: group.name,
-        groupId: group.id,
-        children: validColumnIds.map(id => {
-          const col = columnMap.get(id)!;
-          return {
-            field: col.field,
-            headerName: col.name,
-            sortable: true,
-            filter: true,
-            columnGroupId: group.id
-          };
-        })
-      };
-      
-      groupedCols.push(groupDef);
-    }
-  });
+  // Process columns in their original order
+  const result: any[] = [];
+  const processedGroups = new Set<string>();
   
-  // Process columns that don't belong to any group
   columns.forEach(col => {
-    if (!columnToGroupMap.has(col.id)) {
-      ungroupedCols.push({
+    const groupId = columnToGroupMap.get(col.id);
+    
+    if (groupId) {
+      // This column belongs to a group
+      if (!processedGroups.has(groupId)) {
+        // First time seeing this group, create the group definition
+        const group = groupMap.get(groupId)!;
+        const groupChildren = group.columnIds
+          .filter(id => columnMap.has(id))
+          .map(id => {
+            const childCol = columnMap.get(id)!;
+            return {
+              field: childCol.field,
+              headerName: childCol.name,
+              sortable: true,
+              filter: true,
+              columnGroupId: groupId
+            };
+          });
+        
+        result.push({
+          headerName: group.name,
+          groupId: groupId,
+          children: groupChildren
+        });
+        
+        processedGroups.add(groupId);
+      }
+    } else {
+      // This is an ungrouped column
+      result.push({
         field: col.field,
         headerName: col.name,
         sortable: true,
@@ -208,8 +215,7 @@ function generateGridColumnsWithGroups(columns: ColumnItem[], columnGroups: Colu
     }
   });
   
-  // Combine grouped and ungrouped columns
-  return [...groupedCols, ...ungroupedCols];
+  return result;
 }
 
 // Create and export singleton instance

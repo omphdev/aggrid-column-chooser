@@ -251,33 +251,42 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
       });
     });
     
-    // Prepare the result structure
+    // Create a map of group ID to group for quick lookup
+    const groupMap = new Map<string, ColumnGroup>();
+    columnGroups.forEach(group => groupMap.set(group.id, group));
+    
+    // Process columns in their original order
     const result: ColumnItem[] = [];
+    const processedGroups = new Set<string>();
     
-    // Add groups as parent items
-    columnGroups.forEach(group => {
-      // Filter for valid column IDs (that exist in our columns)
-      const groupColumnIds = group.columnIds.filter(id => columnMap.has(id));
-      
-      if (groupColumnIds.length > 0) {
-        // Create a parent item for the group
-        const groupItem: ColumnItem = {
-          id: `group_${group.id}`,
-          name: group.name,
-          field: '', // Groups don't have fields
-          children: groupColumnIds.map(id => columnMap.get(id)!),
-          expanded: true,
-          isGroup: true, // Flag to indicate this is a group
-          groupId: group.id // Store the original group ID
-        };
-        
-        result.push(groupItem);
-      }
-    });
-    
-    // Add ungrouped columns
     columns.forEach(col => {
-      if (!columnToGroupMap.has(col.id)) {
+      const groupId = columnToGroupMap.get(col.id);
+      
+      if (groupId) {
+        // This column belongs to a group
+        if (!processedGroups.has(groupId)) {
+          // First time seeing this group, create the group definition
+          const group = groupMap.get(groupId)!;
+          const groupChildren = group.columnIds
+            .filter(id => columnMap.has(id))
+            .map(id => columnMap.get(id)!);
+          
+          // Create a parent item for the group
+          const groupItem: ColumnItem = {
+            id: `group_${groupId}`,
+            name: group.name,
+            field: '', // Groups don't have fields
+            children: groupChildren,
+            expanded: true,
+            isGroup: true, // Flag to indicate this is a group
+            groupId: groupId // Store the original group ID
+          };
+          
+          result.push(groupItem);
+          processedGroups.add(groupId);
+        }
+      } else {
+        // This is an ungrouped column
         result.push({ ...col });
       }
     });
