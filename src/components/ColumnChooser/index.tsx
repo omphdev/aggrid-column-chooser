@@ -85,6 +85,7 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
           onDeleteGroup={columnManagement.deleteColumnGroup}
           onRenameGroup={columnManagement.renameColumnGroup}
           onReorderGroups={columnManagement.reorderColumnGroups}
+          reorderColumnsWithinGroup={columnManagement.reorderColumnsWithinGroup} // Add new prop for reordering columns within a group
         />
       </div>
     </div>

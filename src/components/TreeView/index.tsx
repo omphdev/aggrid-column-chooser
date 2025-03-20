@@ -30,6 +30,8 @@ interface TreeViewProps {
   onDropOnGroup?: (groupId: string, columnIds: string[]) => void;
   onRemoveFromGroup?: (columnIds: string[], groupId: string) => void;
   moveItemsToSelected?: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
+  onReorderGroups?: (groupIds: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
+  onReorderColumnsWithinGroup?: (columnIds: string[], groupId: string, dropPosition: { targetId?: string, insertBefore: boolean }) => void;
 }
 
 const TreeView: React.FC<TreeViewProps> = ({
@@ -55,7 +57,9 @@ const TreeView: React.FC<TreeViewProps> = ({
   onContextMenu,
   onDropOnGroup,
   onRemoveFromGroup,
-  moveItemsToSelected
+  moveItemsToSelected,
+  onReorderGroups,
+  onReorderColumnsWithinGroup
 }) => {
   // Keep a reference to the selected IDs for use in drag events
   const selectedIdsRef = useRef(selectedIds);
@@ -76,65 +80,113 @@ const TreeView: React.FC<TreeViewProps> = ({
     handleDrop: handleEnhancedDrop
   } = useTreeDragDrop(onDrop);
   
-// Replace the handleDragStart function in src/components/TreeView/index.tsx
-
-// Handle drag start for any item (tree or flat)
-const handleDragStart = useCallback((e: React.DragEvent, item: ColumnItem) => {
-  console.log(`Drag start in ${source} panel for item:`, item.id);
-  console.log('Currently selected IDs:', selectedIdsRef.current);
-  
-  // Determine which items to include in the drag
-  let dragIds: string[] = [];
-  
-  // If the item being dragged is in the selection, include all selected items
-  if (selectedIdsRef.current.includes(item.id)) {
-    dragIds = [...selectedIdsRef.current];
-    console.log(`Item ${item.id} is part of multiselection, dragging all ${dragIds.length} selected items`);
-  } else {
-    // Otherwise, just include this one item
-    dragIds = [item.id];
-    console.log(`Item ${item.id} is not part of multiselection, dragging single item`);
-  }
-  
-  // Set drag data
-  const dragText = dragIds.length > 1 ? `${dragIds.length} columns` : item.name;
-  
-  // Set the drag data directly with all needed information
-  e.dataTransfer.effectAllowed = 'move';
-  
-  // Add source group information if applicable
-  const sourceGroupId = item.groupId || item.parentGroupId;
-  
-  e.dataTransfer.setData('text/plain', JSON.stringify({
-    ids: dragIds,
-    source,
-    itemName: dragText,
-    sourceGroupId: sourceGroupId
-  }));
-  
-  // Add "being dragged" visual effect to all selected items
-  if (dragIds.length > 1) {
-    // Apply visual effect to all selected items
-    document.querySelectorAll(`.tree-view[data-source="${source}"] .selected`).forEach(el => {
-      el.classList.add('dragging');
-    });
-  }
-  
-  // Call the parent's drag handler
-  onDragStart(e, item);
-  
-  // Clean up on drag end
-  const handleDragEnd = () => {
-    // Remove dragging class from all elements
-    document.querySelectorAll('.dragging').forEach(el => {
-      el.classList.remove('dragging');
-    });
+  // Handle drag start for any item (tree or flat)
+  const handleDragStart = useCallback((e: React.DragEvent, item: ColumnItem) => {
+    console.log(`Drag start in ${source} panel for item:`, item.id);
+    console.log('Currently selected IDs:', selectedIdsRef.current);
     
-    document.removeEventListener('dragend', handleDragEnd);
-  };
+    // Determine which items to include in the drag
+    let dragIds: string[] = [];
+    
+    // If the item being dragged is in the selection, include all selected items
+    if (selectedIdsRef.current.includes(item.id)) {
+      dragIds = [...selectedIdsRef.current];
+      console.log(`Item ${item.id} is part of multiselection, dragging all ${dragIds.length} selected items`);
+    } else {
+      // Otherwise, just include this one item
+      dragIds = [item.id];
+      console.log(`Item ${item.id} is not part of multiselection, dragging single item`);
+    }
+    
+    // Set drag data
+    const dragText = dragIds.length > 1 ? `${dragIds.length} columns` : item.name;
+    
+    // Set the drag data directly with all needed information
+    e.dataTransfer.effectAllowed = 'move';
+    
+    // Add source group information if applicable
+    const sourceGroupId = item.groupId || item.parentGroupId;
+    
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      ids: dragIds,
+      source,
+      itemName: dragText,
+      sourceGroupId: sourceGroupId
+    }));
+    
+    // Add "being dragged" visual effect to all selected items
+    if (dragIds.length > 1) {
+      // Apply visual effect to all selected items
+      document.querySelectorAll(`.tree-view[data-source="${source}"] .selected`).forEach(el => {
+        el.classList.add('dragging');
+      });
+    }
+    
+    // Call the parent's drag handler
+    onDragStart(e, item);
+    
+    // Clean up on drag end
+    const handleDragEnd = () => {
+      // Remove dragging class from all elements
+      document.querySelectorAll('.dragging').forEach(el => {
+        el.classList.remove('dragging');
+      });
+      
+      document.removeEventListener('dragend', handleDragEnd);
+    };
+    
+    document.addEventListener('dragend', handleDragEnd);
+  }, [onDragStart, source]);
   
-  document.addEventListener('dragend', handleDragEnd);
-}, [onDragStart, source]);
+  // Handle drop - process drops from both panels and for groups
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    
+    try {
+      // Get the drag data
+      const dataText = e.dataTransfer.getData('text/plain');
+      if (!dataText) {
+        console.error('No drag data found');
+        return;
+      }
+      
+      const data = JSON.parse(dataText);
+      console.log('Drop in TreeView:', data);
+      
+      // Get drop position from the event
+      const positionedEvent = e as any;
+      const dropPosition = positionedEvent.dropPosition || { insertBefore: true };
+      
+      // Log what we're processing
+      console.log('Processing drop with position:', dropPosition);
+      
+      // Handle group reordering drops
+      if (data.type === 'group' && data.source === 'selected' && data.groupId) {
+        // Call the specialized group reordering handler if available
+        if (onReorderGroups) {
+          console.log('Reordering group:', data.groupId, 'Drop position:', dropPosition);
+          onReorderGroups([data.groupId], dropPosition);
+          return;
+        }
+      }
+      
+      // Handle regular item drops
+      if (data.source === 'available' && data.ids && data.ids.length > 0) {
+        // Items coming from available panel
+        console.log('Moving items from available to selected:', data.ids);
+        
+        if (moveItemsToSelected) {
+          moveItemsToSelected(data.ids, dropPosition);
+        }
+      } else if (data.source === 'selected' && data.ids && data.ids.length > 0) {
+        // Reordering within selected panel
+        console.log('Reordering within selected panel:', data.ids);
+        onDrop(e);
+      }
+    } catch (err) {
+      console.error('Error processing drop:', err);
+    }
+  };
   
   // Handle drag over a group header
   const handleGroupHeaderDragOver = useCallback((e: React.DragEvent, groupId: string) => {
@@ -166,23 +218,30 @@ const handleDragStart = useCallback((e: React.DragEvent, item: ColumnItem) => {
       }
       
       const data = JSON.parse(dataText);
+      console.log('Drop on group:', groupId, data);
       
-      if (data.source && data.ids && data.ids.length > 0) {
-        // Handle drop differently based on source
-        if (data.source === 'available') {
-          // First move from available to selected
-          if (moveItemsToSelected) {
-            moveItemsToSelected(data.ids, { insertBefore: false });
-            
-            // Then add to group with a delay to ensure state is updated
-            setTimeout(() => {
-              onDropOnGroup(groupId, data.ids);
-            }, 100);
+      // Handle adding columns to the group
+      if (data.source === 'selected' && data.ids && data.ids.length > 0) {
+        // Handle group-to-group transfer if applicable
+        if (data.sourceGroupId && data.sourceGroupId !== groupId) {
+          // Move between groups - first remove from old group
+          if (onRemoveFromGroup) {
+            onRemoveFromGroup(data.ids, data.sourceGroupId);
           }
-        } else if (data.source === 'selected') {
-          // Direct add to group from selected
+          // Then add to new group
+          onDropOnGroup(groupId, data.ids);
+        } else if (!data.sourceGroupId) {
+          // Add from ungrouped to group
           onDropOnGroup(groupId, data.ids);
         }
+      } else if (data.source === 'available' && data.ids && data.ids.length > 0 && moveItemsToSelected) {
+        // First move from available to selected
+        moveItemsToSelected(data.ids, { insertBefore: false });
+        
+        // Then add to group with a delay to ensure state is updated
+        setTimeout(() => {
+          onDropOnGroup(groupId, data.ids);
+        }, 100);
       }
     } catch (err) {
       console.error('Error handling drop on group:', err);
@@ -192,7 +251,7 @@ const handleDragStart = useCallback((e: React.DragEvent, item: ColumnItem) => {
     setGroupDragTarget(null);
     setGroupContentDragTarget(null);
     setEmptyGroupDragTarget(null);
-  }, [onDropOnGroup, moveItemsToSelected]);
+  }, [onDropOnGroup, onRemoveFromGroup, moveItemsToSelected]);
   
   // Handle drop in a group (between items)
   const handleDropInGroup = useCallback((e: React.DragEvent, groupId: string) => {
@@ -293,11 +352,18 @@ const handleDragStart = useCallback((e: React.DragEvent, item: ColumnItem) => {
     }
   }, [onRemoveFromGroup]);
   
+  // Handle reordering columns within a group
+  const handleReorderColumnsWithinGroup = useCallback((columnIds: string[], groupId: string, dropPosition: { targetId?: string, insertBefore: boolean }) => {
+    if (onReorderColumnsWithinGroup && dropPosition.targetId) {
+      onReorderColumnsWithinGroup(columnIds, groupId, dropPosition);
+    }
+  }, [onReorderColumnsWithinGroup]);
+  
   return (
     <div 
       className="tree-view"
       onDragOver={handleContainerDragOver}
-      onDrop={handleEnhancedDrop}
+      onDrop={handleDrop}
       onDragLeave={handleDragLeave}
       onContextMenu={(e) => handleContextMenu(e, selectedIds)}
       data-source={source}

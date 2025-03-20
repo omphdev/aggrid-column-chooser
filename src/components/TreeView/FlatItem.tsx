@@ -18,6 +18,7 @@ interface FlatItemProps {
   onRemoveFromGroup?: (columnIds: string[]) => void;
   canDragToGroup?: boolean; // New prop to enable drag-to-group
   groupId?: string; // The group this item belongs to, if any
+  onReorderWithinGroup?: (columnIds: string[], groupId: string, dropPosition: { targetId: string, insertBefore: boolean }) => void;
 }
 
 const FlatItem: React.FC<FlatItemProps> = ({
@@ -36,7 +37,8 @@ const FlatItem: React.FC<FlatItemProps> = ({
   enableReordering = false,
   onRemoveFromGroup,
   canDragToGroup = true,
-  groupId
+  groupId,
+  onReorderWithinGroup
 }) => {
   const itemRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -93,6 +95,89 @@ const FlatItem: React.FC<FlatItemProps> = ({
     if (onDragOver && itemRef.current) {
       onDragOver(e, itemRef.current, item.id);
     }
+    
+    // Support reordering within a group
+    if (groupId && onReorderWithinGroup) {
+      try {
+        const dataText = e.dataTransfer.getData('text/plain');
+        if (dataText) {
+          const data = JSON.parse(dataText);
+          
+          // If dragging from the same group, visualize drop position
+          if (data.sourceGroupId === groupId) {
+            // Add visual indicator
+            const rect = itemRef.current!.getBoundingClientRect();
+            const mouseY = e.clientY;
+            const mouseRelativePos = (mouseY - rect.top) / rect.height;
+            const insertBefore = mouseRelativePos < 0.5;
+            
+            // Add appropriate class
+            if (insertBefore) {
+              itemRef.current!.classList.add('drag-over-top');
+              itemRef.current!.classList.remove('drag-over-bottom');
+            } else {
+              itemRef.current!.classList.add('drag-over-bottom');
+              itemRef.current!.classList.remove('drag-over-top');
+            }
+          }
+        }
+      } catch (err) {
+        // Continue even if we can't get data (this happens in some browsers)
+      }
+    }
+  };
+  
+  // Handle drag leave
+  const handleItemDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    
+    if (onDragLeave) {
+      onDragLeave();
+    }
+    
+    // Remove all drop indicators
+    if (itemRef.current) {
+      itemRef.current.classList.remove('drag-over-top', 'drag-over-bottom');
+    }
+  };
+  
+  // Handle drop on an item in a group - for reordering within group
+  const handleItemDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Remove drop indicators
+    if (itemRef.current) {
+      itemRef.current.classList.remove('drag-over-top', 'drag-over-bottom');
+    }
+    
+    // Check if this is a within-group reordering drop
+    if (groupId && onReorderWithinGroup) {
+      try {
+        const dataText = e.dataTransfer.getData('text/plain');
+        if (!dataText) return;
+        
+        const data = JSON.parse(dataText);
+        
+        // Only handle if the source is also from the same group
+        if (data.source === 'selected' && data.sourceGroupId === groupId) {
+          // Calculate insert position
+          const rect = itemRef.current!.getBoundingClientRect();
+          const mouseY = e.clientY;
+          const mouseRelativePos = (mouseY - rect.top) / rect.height;
+          const insertBefore = mouseRelativePos < 0.5;
+          
+          // Call reordering handler
+          onReorderWithinGroup(
+            data.ids, 
+            groupId, 
+            { targetId: item.id, insertBefore }
+          );
+        }
+      } catch (err) {
+        console.error('Error processing drop for group reordering:', err);
+      }
+    }
   };
   
   // Handle remove from group
@@ -120,7 +205,8 @@ const FlatItem: React.FC<FlatItemProps> = ({
       draggable={true}
       onDragStart={handleItemDragStart}
       onDragOver={handleItemDragOver}
-      onDragLeave={onDragLeave}
+      onDragLeave={handleItemDragLeave}
+      onDrop={handleItemDrop}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       data-item-id={item.id}

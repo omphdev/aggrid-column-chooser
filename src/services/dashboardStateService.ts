@@ -98,7 +98,7 @@ class DashboardStateService {
 
   // Update selected column IDs
   updateSelectedColumns(columnIds: string[]) {
-    const { columnDefinitions, availableColumns, columnGroups } = this.value;
+    const { columnDefinitions, columnGroups } = this.value;
     
     // Create a map for quick lookup
     const columnMap = new Map(
@@ -120,8 +120,10 @@ class DashboardStateService {
     // Generate grid column definitions
     const gridColumnDefs = generateGridColumnsWithGroups(selectedColumns, columnGroups);
     
-    // Also update available columns to remove the selected ones
-    const updatedAvailableColumns = removeSelectedFromAvailable(availableColumns, columnIds);
+    // FIXED: Rebuild available columns from scratch based on all column definitions
+    // This ensures removed columns will be properly added back to the available panel
+    const allAvailableColumns = convertToTreeStructure(columnDefinitions);
+    const updatedAvailableColumns = removeSelectedFromAvailable(allAvailableColumns, columnIds);
     
     // Update state
     this.next({

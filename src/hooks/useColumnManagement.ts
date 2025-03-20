@@ -700,58 +700,158 @@ export const useColumnManagement = ({
     onColumnGroupsChange(updatedGroups);
   }, [columnGroups, onColumnGroupsChange]);
   
-  // Reorder column groups
-  const reorderColumnGroups = useCallback((groupIds: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => {
-    if (!dropPosition.targetId || !dropPosition.targetId.startsWith('group_')) {
-      return; // Need a valid target group
-    }
+  // Function to replace in useColumnManagement.ts
+
+// Reorder column groups - fixed implementation
+const reorderColumnGroups = useCallback((groupIds: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => {
+  if (!dropPosition.targetId) {
+    return; // Need a valid target
+  }
+  
+  console.log(`Reordering groups: ${groupIds.join(',')} to target ${dropPosition.targetId}`);
+  
+  // Check if target is a column or a group
+  const isTargetGroup = dropPosition.targetId.startsWith('group_');
+  const targetId = isTargetGroup ? dropPosition.targetId.substring(6) : dropPosition.targetId;
+  
+  // Skip if dragging onto itself (when target is a group)
+  if (isTargetGroup && groupIds.length === 1 && groupIds[0] === targetId) {
+    return;
+  }
+  
+  // Get current column order
+  const currentSelectedIds = selectedColumns.map(col => col.id);
+
+  // FIXED: Create mapping of group IDs to their columns for easier reference
+  const groupColumnsMap = new Map<string, string[]>();
+  columnGroups.forEach(group => {
+    // Only include columns that are actually in the selected columns
+    const validColumns = group.columnIds.filter(id => 
+      selectedColumns.some(col => col.id === id));
+    groupColumnsMap.set(group.id, validColumns);
+  });
+  
+  // Handle reordering groups among normal columns
+  if (!isTargetGroup) {
+    // We're placing the group between columns
     
-    const targetGroupId = dropPosition.targetId.substring(6); // Remove 'group_' prefix
+    // Collect all column IDs from the groups being moved
+    const groupColumnIds: string[] = [];
+    groupIds.forEach(groupId => {
+      const groupColumns = groupColumnsMap.get(groupId) || [];
+      groupColumns.forEach(colId => {
+        if (!groupColumnIds.includes(colId)) {
+          groupColumnIds.push(colId);
+        }
+      });
+    });
     
-    // Skip if dragging onto itself
-    if (groupIds.length === 1 && groupIds[0] === targetGroupId) {
-      return;
-    }
+    if (groupColumnIds.length === 0) return; // No valid columns to move
     
-    // Get current group order
-    const currentGroupIds = columnGroups.map(group => group.id);
+    // Remove group columns from current order
+    const remainingColumns = currentSelectedIds.filter(id => !groupColumnIds.includes(id));
     
-    // Create a set of group IDs to move
-    const groupIdSet = new Set(groupIds);
-    
-    // Find the target index
-    const targetIndex = currentGroupIds.indexOf(targetGroupId);
+    // Find insertion index - where the target column is
+    const targetIndex = remainingColumns.indexOf(targetId);
     if (targetIndex === -1) return; // Target not found
     
-    // Remove the groups to be moved
-    const remainingGroupIds = currentGroupIds.filter(id => !groupIdSet.has(id));
+    // Calculate insert position
+    const insertPosition = dropPosition.insertBefore ? targetIndex : targetIndex + 1;
     
-    // Calculate the insertion index
-    let insertIndex;
-    if (dropPosition.insertBefore) {
-      insertIndex = remainingGroupIds.indexOf(targetGroupId);
-    } else {
-      insertIndex = remainingGroupIds.indexOf(targetGroupId) + 1;
-    }
-    
-    // Handle boundary cases
-    if (insertIndex < 0) insertIndex = 0;
-    if (insertIndex > remainingGroupIds.length) insertIndex = remainingGroupIds.length;
-    
-    // Create the new order of group IDs
-    const newGroupIds = [
-      ...remainingGroupIds.slice(0, insertIndex),
-      ...groupIds,
-      ...remainingGroupIds.slice(insertIndex)
+    // Create new column order
+    const newColumnOrder = [
+      ...remainingColumns.slice(0, insertPosition),
+      ...groupColumnIds,
+      ...remainingColumns.slice(insertPosition)
     ];
     
-    // Create updated groups array based on new order
-    const groupMap = new Map(columnGroups.map(group => [group.id, group]));
-    const updatedGroups = newGroupIds.map(id => groupMap.get(id)!);
+    console.log('New column order:', newColumnOrder);
     
-    // Update column groups
-    onColumnGroupsChange(updatedGroups);
-  }, [columnGroups, onColumnGroupsChange]);
+    // Update the column order
+    onSelectedColumnsChange(newColumnOrder);
+    return;
+  }
+  
+  // Handle group-to-group reordering
+  
+  // Get current group order
+  const currentGroupIds = columnGroups.map(group => group.id);
+  
+  // Create a set of group IDs to move for efficient lookup
+  const groupIdSet = new Set(groupIds);
+  
+  // Find the target index
+  const targetIndex = currentGroupIds.indexOf(targetId);
+  if (targetIndex === -1) return; // Target not found
+  
+  // Remove the groups to be moved
+  const remainingGroupIds = currentGroupIds.filter(id => !groupIdSet.has(id));
+  
+  // Calculate the insertion index in the remaining groups
+  const targetIndexInRemaining = remainingGroupIds.indexOf(targetId);
+  
+  // Calculate the insertion index
+  let insertIndex;
+  if (dropPosition.insertBefore) {
+    insertIndex = targetIndexInRemaining;
+  } else {
+    insertIndex = targetIndexInRemaining + 1;
+  }
+  
+  // Handle boundary cases
+  if (insertIndex < 0) insertIndex = 0;
+  if (insertIndex > remainingGroupIds.length) insertIndex = remainingGroupIds.length;
+  
+  // Create the new order of group IDs
+  const newGroupIds = [
+    ...remainingGroupIds.slice(0, insertIndex),
+    ...groupIds,
+    ...remainingGroupIds.slice(insertIndex)
+  ];
+  
+  console.log('New group order:', newGroupIds);
+  
+  // Create updated groups array based on new order
+  const groupMap = new Map(columnGroups.map(group => [group.id, group]));
+  const updatedGroups = newGroupIds.map(id => groupMap.get(id)!);
+  
+  // Update column groups
+  onColumnGroupsChange(updatedGroups);
+  
+  // FIXED: Also update column order to match the new group order
+  // This is crucial for visual consistency between the group order and the grid
+  
+  // Build a new column order that respects the group order
+  const newColumnOrder: string[] = [];
+  const processedColumns = new Set<string>();
+  
+  // 1. Add all columns in groups in their new order
+  newGroupIds.forEach(groupId => {
+    const groupColumns = groupColumnsMap.get(groupId) || [];
+    groupColumns.forEach(colId => {
+      if (currentSelectedIds.includes(colId) && !processedColumns.has(colId)) {
+        newColumnOrder.push(colId);
+        processedColumns.add(colId);
+      }
+    });
+  });
+  
+  // 2. Add remaining ungrouped columns in their original order
+  currentSelectedIds.forEach(colId => {
+    if (!processedColumns.has(colId)) {
+      newColumnOrder.push(colId);
+      processedColumns.add(colId);
+    }
+  });
+  
+  console.log('New column order based on group order:', newColumnOrder);
+  
+  // Update column order only if it's different
+  if (newColumnOrder.length === currentSelectedIds.length &&
+      newColumnOrder.some((id, index) => id !== currentSelectedIds[index])) {
+    onSelectedColumnsChange(newColumnOrder);
+  }
+}, [columnGroups, selectedColumns, onSelectedColumnsChange, onColumnGroupsChange]);
   
   // Move columns between groups
   const moveColumnsBetweenGroups = useCallback((columnIds: string[], sourceGroupId: string, targetGroupId: string) => {
@@ -798,6 +898,58 @@ export const useColumnManagement = ({
   const updateColumnGroups = useCallback((newGroups: ColumnGroup[]) => {
     onColumnGroupsChange(newGroups);
   }, [onColumnGroupsChange]);
+  
+  // ENHANCED: Reorder columns within a group
+  const reorderColumnsWithinGroup = useCallback((columnIds: string[], groupId: string, dropPosition: { targetId?: string, insertBefore: boolean }) => {
+    // Find the group
+    const group = columnGroups.find(g => g.id === groupId);
+    if (!group || !dropPosition.targetId) return;
+    
+    // Get the current column order in the group
+    const currentColumnIds = [...group.columnIds];
+    
+    // Skip if dragging onto itself
+    if (columnIds.length === 1 && columnIds[0] === dropPosition.targetId) {
+      return;
+    }
+    
+    // Create a set of column IDs to move
+    const columnIdSet = new Set(columnIds);
+    
+    // Find the target index
+    const targetIndex = currentColumnIds.indexOf(dropPosition.targetId);
+    if (targetIndex === -1) return; // Target not found
+    
+    // Remove the columns to be moved
+    const remainingColumnIds = currentColumnIds.filter(id => !columnIdSet.has(id));
+    
+    // Calculate the insertion index
+    let insertIndex;
+    if (dropPosition.insertBefore) {
+      insertIndex = remainingColumnIds.indexOf(dropPosition.targetId);
+    } else {
+      insertIndex = remainingColumnIds.indexOf(dropPosition.targetId) + 1;
+    }
+    
+    // Handle boundary cases
+    if (insertIndex < 0) insertIndex = 0;
+    if (insertIndex > remainingColumnIds.length) insertIndex = remainingColumnIds.length;
+    
+    // Create the new order of column IDs
+    const newColumnIds = [
+      ...remainingColumnIds.slice(0, insertIndex),
+      ...columnIds,
+      ...remainingColumnIds.slice(insertIndex)
+    ];
+    
+    // Update the group with the new column order
+    const updatedGroups = columnGroups.map(g => 
+      g.id === groupId ? { ...g, columnIds: newColumnIds } : g
+    );
+    
+    // Update column groups
+    onColumnGroupsChange(updatedGroups);
+  }, [columnGroups, onColumnGroupsChange]);
   
   // Helper function to get all item IDs from a tree
   const getAllItemIds = (items: ColumnItem[]): string[] => {
@@ -854,6 +1006,7 @@ export const useColumnManagement = ({
     reorderColumnGroups,
     moveColumnsBetweenGroups,
     updateColumnGroups,
+    reorderColumnsWithinGroup,
     
     // Helper functions
     getSelectedAvailableCount: () => selectedAvailableIds.length,

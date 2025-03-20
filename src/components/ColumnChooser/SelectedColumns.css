@@ -141,6 +141,7 @@
   box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
 }
 
+/* Ensure group headers are draggable */
 .group-header {
   background-color: #f5f5f5;
   padding: 8px 12px;
@@ -148,13 +149,19 @@
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #d9d9d9;
-  cursor: grab;
+  cursor: grab !important;
+  user-select: none;
+}
+
+.group-header:active {
+  cursor: grabbing !important;
 }
 
 .group-header.dragging {
-  opacity: 0.6;
-  background-color: #e6f7ff;
-  cursor: grabbing;
+  opacity: 0.7;
+  background-color: #e6f7ff !important;
+  box-shadow: 0 0 8px rgba(24, 144, 255, 0.2);
+  border: 1px dashed #1890ff;
 }
 
 .group-header-wrapper {
@@ -199,6 +206,20 @@
 .group-content.drag-over {
   border-color: #1890ff;
   background-color: rgba(24, 144, 255, 0.05);
+}
+
+/* Make group handle more visible */
+.group-move-handle {
+  cursor: grab;
+  margin-right: 8px;
+  color: #999;
+  transition: color 0.2s;
+  display: inline-block;
+  font-size: 14px;
+}
+
+.group-move-handle:hover {
+  color: #1890ff;
 }
 
 /* Empty group placeholder */
@@ -276,6 +297,27 @@
   color: #ff4d4f;
 }
 
+/* Enhanced drop visualization */
+.drag-over-indicator {
+  height: 2px;
+  background-color: #1890ff;
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+.drag-over-indicator::before {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background-color: #1890ff;
+  border-radius: 50%;
+  top: -2px;
+  left: 10px;
+}
+
 /* Drop position indicators */
 .drop-indicator {
   position: absolute;
@@ -311,22 +353,6 @@
 .group-droppable-area.drag-over {
   border-color: #1890ff;
   background-color: rgba(24, 144, 255, 0.05);
-}
-
-/* Enhanced group move handle */
-.group-move-handle {
-  cursor: grab;
-  margin-right: 8px;
-  color: #bbb;
-  transition: color 0.2s;
-}
-
-.group-move-handle:hover {
-  color: #666;
-}
-
-.group-move-handle:active {
-  cursor: grabbing;
 }
 
 /* Group context menu */
