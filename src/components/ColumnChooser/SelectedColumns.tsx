@@ -28,7 +28,6 @@ interface SelectedColumnsProps {
   onDeleteGroup: (groupId: string) => void;
   onRenameGroup: (groupId: string, newName: string) => void;
   onReorderGroups: (groupIds: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
-  reorderColumnsWithinGroup?: (columnIds: string[], groupId: string, dropPosition: { targetId?: string, insertBefore: boolean }) => void;
 }
 
 const SelectedColumns: React.FC<SelectedColumnsProps> = ({
@@ -55,8 +54,7 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
   onCreateGroup,
   onDeleteGroup,
   onRenameGroup,
-  onReorderGroups,
-  reorderColumnsWithinGroup
+  onReorderGroups
 }) => {
   // State for managing the group menu
   const [showGroupMenu, setShowGroupMenu] = useState(false);
@@ -74,6 +72,19 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
   // Handle drag start - TreeView will handle the details
   const handleDragStart = (e: React.DragEvent, item: ColumnItem) => {
     console.log('Drag start in SelectedColumns for item:', item.id);
+  };
+  
+  // Handle group drag start
+  const handleGroupDragStart = (e: React.DragEvent, group: ColumnGroup) => {
+    console.log('Drag start for group:', group.id);
+    
+    // Set the drag data for the group
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      type: 'group',
+      groupId: group.id,
+      source: 'selected'
+    }));
   };
   
   // Handle drop - process drops from both panels and for groups
@@ -95,10 +106,8 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
       const positionedEvent = e as any;
       const dropPosition = positionedEvent.dropPosition || { insertBefore: true };
       
-      // Handle group reordering drops
-      if (data.type === 'group' && data.source === 'selected' && data.groupId) {
-        // Handle group reordering - this now works for positioning among columns
-        console.log('Reordering group:', data.groupId, 'Drop position:', dropPosition);
+      if (data.type === 'group' && data.source === 'selected') {
+        // Handle group reordering
         onReorderGroups([data.groupId], dropPosition);
         return;
       }
@@ -278,106 +287,6 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
   
   // Get grouped columns for display
   const groupedColumns = prepareGroupedColumnsForDisplay();
-  
-  // Render a group header - fixed to be properly draggable
-  const renderGroupHeader = (groupId: string) => {
-    const group = columnGroups.find(g => g.id === groupId);
-    if (!group) return null;
-    
-    const isEditing = editingGroupId === group.id;
-    const isBeingDraggedOver = groupDragTarget === group.id;
-    
-    return (
-      <div 
-        className={`group-header ${isBeingDraggedOver ? 'drag-over' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setGroupDragTarget(group.id);
-        }}
-        onDragLeave={() => {
-          setGroupDragTarget(null);
-        }}
-        draggable={!isEditing} // Make entire header draggable
-        onDragStart={(e) => {
-          console.log('Drag start for group:', group.id);
-          
-          // Set the drag data
-          e.dataTransfer.effectAllowed = 'move';
-          const dragData = JSON.stringify({
-            type: 'group',
-            groupId: group.id,
-            source: 'selected'
-          });
-          
-          // Set this explicitly - critical for drag data to be properly captured
-          e.dataTransfer.setData('text/plain', dragData); 
-          
-          // Add visual feedback
-          const element = e.currentTarget as HTMLElement;
-          element.classList.add('dragging');
-          
-          // Clean up on drag end
-          const handleDragEnd = () => {
-            element.classList.remove('dragging');
-            document.removeEventListener('dragend', handleDragEnd);
-          };
-          
-          document.addEventListener('dragend', handleDragEnd);
-        }}
-      >
-        {isEditing ? (
-          <input 
-            type="text"
-            value={editingGroupName}
-            onChange={(e) => setEditingGroupName(e.target.value)}
-            autoFocus
-            onBlur={handleSaveGroupName}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSaveGroupName();
-              if (e.key === 'Escape') handleCancelEditGroup();
-            }}
-          />
-        ) : (
-          <div 
-            className="group-name"
-            style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}
-          >
-            <span className="group-move-handle">⋮⋮</span>
-            <span>{group.name}</span>
-            <span className="group-count">({group.columnIds.length})</span>
-          </div>
-        )}
-        
-        <div className="group-actions">
-          {!isEditing && (
-            <>
-              <button 
-                className="action-button"
-                onClick={() => handleStartEditGroup(group.id, group.name)}
-                title="Rename group"
-                style={{ marginRight: '4px' }}
-              >
-                ✎
-              </button>
-              <button 
-                className="action-button"
-                onClick={() => handleDeleteGroup(group.id)}
-                title="Delete group"
-              >
-                ✕
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  };
-  
-  // Function to handle a column item being dropped on a group
-  const handleColumnDropOnGroup = (groupId: string, columnIds: string[]) => {
-    onAddToGroup(columnIds, groupId);
-  };
   
   // Custom header with action buttons
   const renderCustomHeader = () => (
@@ -570,6 +479,81 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
     );
   };
   
+  // Render a group header
+  const renderGroupHeader = (groupId: string) => {
+    const group = columnGroups.find(g => g.id === groupId);
+    if (!group) return null;
+    
+    const isEditing = editingGroupId === group.id;
+    const isBeingDraggedOver = groupDragTarget === group.id;
+    
+    return (
+      <div 
+        className={`group-header ${isBeingDraggedOver ? 'drag-over' : ''}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setGroupDragTarget(group.id);
+        }}
+        onDragLeave={() => {
+          setGroupDragTarget(null);
+        }}
+      >
+        {isEditing ? (
+          <input 
+            type="text"
+            value={editingGroupName}
+            onChange={(e) => setEditingGroupName(e.target.value)}
+            autoFocus
+            onBlur={handleSaveGroupName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSaveGroupName();
+              if (e.key === 'Escape') handleCancelEditGroup();
+            }}
+          />
+        ) : (
+          <div 
+            className="group-name"
+            draggable
+            onDragStart={(e) => handleGroupDragStart(e, group)}
+            style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}
+          >
+            <span className="group-move-handle">⋮⋮</span>
+            <span>{group.name}</span>
+            <span className="group-count">({group.columnIds.length})</span>
+          </div>
+        )}
+        
+        <div className="group-actions">
+          {!isEditing && (
+            <>
+              <button 
+                className="action-button"
+                onClick={() => handleStartEditGroup(group.id, group.name)}
+                title="Rename group"
+                style={{ marginRight: '4px' }}
+              >
+                ✎
+              </button>
+              <button 
+                className="action-button"
+                onClick={() => handleDeleteGroup(group.id)}
+                title="Delete group"
+              >
+                ✕
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+  
+  // Function to handle a column item being dropped on a group
+  const handleColumnDropOnGroup = (groupId: string, columnIds: string[]) => {
+    onAddToGroup(columnIds, groupId);
+  };
+  
   return (
     <div 
       className="selected-columns-container"
@@ -602,8 +586,6 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
           onDropOnGroup={handleColumnDropOnGroup}
           onRemoveFromGroup={handleRemoveFromGroup}
           moveItemsToSelected={moveItemsToSelected}
-          onReorderGroups={onReorderGroups} // Pass the group reordering function
-          onReorderColumnsWithinGroup={reorderColumnsWithinGroup} // Pass the within-group reordering function
         />
       </div>
       
