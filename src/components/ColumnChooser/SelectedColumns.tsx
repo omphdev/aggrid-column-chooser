@@ -122,7 +122,17 @@ const SelectedColumns: React.FC<SelectedColumnsProps> = ({
       } else if (data.source === 'selected' && data.ids && data.ids.length > 0) {
         // Reordering within selected panel
         console.log('Reordering within selected panel:', data.ids);
-        reorderItems(data.ids, dropPosition);
+        
+        // If the items are being dragged from a group
+        if (data.sourceGroupId) {
+          // First remove from the group
+          onRemoveFromGroup(data.ids, data.sourceGroupId);
+          // Then reorder in the selected panel
+          reorderItems(data.ids, dropPosition);
+        } else {
+          // Normal reordering within selected panel
+          reorderItems(data.ids, dropPosition);
+        }
       }
     } catch (err) {
       console.error('Error processing drop:', err);

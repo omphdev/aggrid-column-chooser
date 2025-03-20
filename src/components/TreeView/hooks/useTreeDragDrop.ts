@@ -50,7 +50,7 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
         }
       }
     } catch (err) {
-      // Continue even if we can't get data - some browsers don't allow reading data during dragover
+      // Continue even if we can't get data during dragover
     }
     
     // Clear previous indicators
@@ -59,7 +59,11 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
     // Calculate mouse position within the element
     const rect = element.getBoundingClientRect();
     const mouseRelativePos = (e.clientY - rect.top) / rect.height;
-    const newInsertBefore = mouseRelativePos < 0.5; 
+    
+    // For groups, adjust the threshold to make it easier to drop above
+    const isGroup = element.classList.contains('has-children');
+    const threshold = isGroup ? 0.3 : 0.5; // Use 30% threshold for groups
+    const newInsertBefore = mouseRelativePos < threshold;
     
     // Set visual indicators
     if (newInsertBefore) {
@@ -72,7 +76,7 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
     setActiveDropTarget(itemId);
     setInsertBefore(newInsertBefore);
     
-    console.log(`Drag over: target=${itemId}, insertBefore=${newInsertBefore}`);
+    console.log(`Drag over: target=${itemId}, insertBefore=${newInsertBefore}, isGroup=${isGroup}`);
   }, [clearDropIndicators]);
   
   // Handle drag leave

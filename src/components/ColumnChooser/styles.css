@@ -14,25 +14,37 @@
   opacity: 0.6;
 }
 
-.tree-item.drag-over-top {
-  border-top: 2px solid #1890ff;
+.tree-item.drag-over-top,
+.flat-item.drag-over-top {
+  border-top: 2px solid #1890ff !important;
+  padding-top: 4px !important;
+  margin-top: 0 !important;
+  position: relative;
 }
 
-.tree-item.drag-over-bottom {
-  border-bottom: 2px solid #1890ff;
+.tree-item.drag-over-bottom,
+.flat-item.drag-over-bottom {
+  border-bottom: 2px solid #1890ff !important;
+  padding-bottom: 4px !important;
+  margin-bottom: 0 !important;
+  position: relative;
 }
 
-.drag-indicator {
-  position: absolute;
-  height: 2px;
-  background-color: #1890ff;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  pointer-events: none;
+/* Enhanced drag indicators for groups */
+.tree-item.has-children.drag-over-top,
+.flat-item.has-children.drag-over-top {
+  border-top: 3px solid #1890ff !important;
+  box-shadow: 0 -2px 4px rgba(24, 144, 255, 0.2) !important;
 }
 
-.tree-item.drag-over {
+.tree-item.has-children.drag-over-bottom,
+.flat-item.has-children.drag-over-bottom {
+  border-bottom: 3px solid #1890ff !important;
+  box-shadow: 0 2px 4px rgba(24, 144, 255, 0.2) !important;
+}
+
+.tree-item.drag-over,
+.flat-item.drag-over {
   background-color: rgba(24, 144, 255, 0.1);
 }
 

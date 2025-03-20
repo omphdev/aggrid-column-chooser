@@ -31,12 +31,49 @@ export const useColumnManagement = ({
   const [selectedSelectedIds, setSelectedSelectedIds] = useState<string[]>([]);
   const [lastSelectedAvailableId, setLastSelectedAvailableId] = useState<string | null>(null);
   const [lastSelectedSelectedId, setLastSelectedSelectedId] = useState<string | null>(null);
+  const [shiftClickAnchorId, setShiftClickAnchorId] = useState<string | null>(null);
+  const [shiftClickSource, setShiftClickSource] = useState<'available' | 'selected' | null>(null);
   
-  // Filtered available columns (remove empty groups)
-  const filteredAvailableColumns = useMemo(() => 
-    filterEmptyGroups(availableColumns),
-    [availableColumns]
-  );
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchOnlyAvailable, setSearchOnlyAvailable] = useState(true);
+
+  // Filter columns based on search term
+  const filterColumnsBySearch = useCallback((items: ColumnItem[], term: string): ColumnItem[] => {
+    if (!term) return items;
+    
+    const searchLower = term.toLowerCase();
+    
+    const filterItem = (item: ColumnItem): boolean => {
+      const matchesSearch = item.name.toLowerCase().includes(searchLower);
+      if (item.children && item.children.length > 0) {
+        const filteredChildren = item.children.filter(filterItem);
+        if (filteredChildren.length > 0) {
+          item.children = filteredChildren;
+          return true;
+        }
+        return false;
+      }
+      return matchesSearch;
+    };
+
+    return items.filter(filterItem);
+  }, []);
+
+  // Filtered available columns (remove empty groups and apply search)
+  const filteredAvailableColumns = useMemo(() => {
+    let filtered = filterEmptyGroups(availableColumns);
+    if (searchTerm) {
+      filtered = filterColumnsBySearch(filtered, searchTerm);
+    }
+    return filtered;
+  }, [availableColumns, searchTerm, filterColumnsBySearch]);
+
+  // Filtered selected columns based on search
+  const filteredSelectedColumns = useMemo(() => {
+    if (!searchTerm || searchOnlyAvailable) return selectedColumns;
+    return filterColumnsBySearch(selectedColumns, searchTerm);
+  }, [selectedColumns, searchTerm, searchOnlyAvailable, filterColumnsBySearch]);
   
   // Count leaf nodes
   const availableLeafCount = useMemo(() => 
@@ -75,7 +112,7 @@ export const useColumnManagement = ({
     console.log(`Toggle select available: ${itemId}, multiSelect: ${isMultiSelect}, rangeSelect: ${isRangeSelect}`);
     
     if (isRangeSelect && lastSelectedAvailableId) {
-      // Implement range selection
+      // Get all available column IDs
       const allIds = getAllItemIds(availableColumns);
       const currentIndex = allIds.indexOf(itemId);
       const lastIndex = allIds.indexOf(lastSelectedAvailableId);
@@ -93,38 +130,24 @@ export const useColumnManagement = ({
         setSelectedAvailableIds(newSelectedIds);
         setLastSelectedAvailableId(itemId);
         console.log(`Range selection from ${lastSelectedAvailableId} to ${itemId}, ${newSelectedIds.length} items selected`);
-      } else {
-        // Fall back to single selection if range boundaries not found
-        handleSingleToggle();
+        return;
       }
+    }
+
+    // For regular selection
+    if (isMultiSelect) {
+      setSelectedAvailableIds(prev => {
+        if (prev.includes(itemId)) {
+          return prev.filter(id => id !== itemId);
+        } else {
+          return [...prev, itemId];
+        }
+      });
     } else {
-      // Handle single selection toggle
-      handleSingleToggle();
+      setSelectedAvailableIds([itemId]);
     }
     
-    function handleSingleToggle() {
-      setSelectedAvailableIds(prev => {
-        const isCurrentlySelected = prev.includes(itemId);
-        let newSelection: string[];
-        
-        if (isMultiSelect) {
-          // Ctrl/Cmd+click: toggle this item, keep others
-          newSelection = isCurrentlySelected
-            ? prev.filter(id => id !== itemId)
-            : [...prev, itemId];
-        } else {
-          // Simple click: select only this item, unless it's already the only selected item
-          newSelection = (isCurrentlySelected && prev.length === 1)
-            ? [] // Deselect if it's the only selected item
-            : [itemId]; // Otherwise select just this one
-        }
-        
-        console.log(`Single toggle ${itemId}, now selected: ${newSelection.join(', ')}`);
-        return newSelection;
-      });
-      
-      setLastSelectedAvailableId(itemId);
-    }
+    setLastSelectedAvailableId(itemId);
   }, [availableColumns, selectedAvailableIds, lastSelectedAvailableId]);
   
   // Toggle selection handling for selected columns
@@ -162,9 +185,36 @@ export const useColumnManagement = ({
         return;
       }
     }
-    
+
     if (isRangeSelect && lastSelectedSelectedId) {
-      // Implement range selection
+      // Find which group the last selected item was in
+      const lastSelectedGroup = columnGroups.find(group => 
+        group.columnIds.includes(lastSelectedSelectedId)
+      );
+      
+      // Find which group the current item is in
+      const currentGroup = columnGroups.find(group => 
+        group.columnIds.includes(itemId)
+      );
+      
+      // If both items are in the same group, perform range selection within that group
+      if (lastSelectedGroup && currentGroup && lastSelectedGroup.id === currentGroup.id) {
+        const groupColumnIds = lastSelectedGroup.columnIds;
+        const lastIndex = groupColumnIds.indexOf(lastSelectedSelectedId);
+        const currentIndex = groupColumnIds.indexOf(itemId);
+        
+        if (lastIndex !== -1 && currentIndex !== -1) {
+          const start = Math.min(lastIndex, currentIndex);
+          const end = Math.max(lastIndex, currentIndex);
+          const rangeIds = groupColumnIds.slice(start, end + 1);
+          
+          setSelectedSelectedIds(rangeIds);
+          setLastSelectedSelectedId(itemId);
+          return;
+        }
+      }
+      
+      // If items are in different groups or not in any group, perform flat list range selection
       const allIds = selectedColumns.map(item => item.id);
       const currentIndex = allIds.indexOf(itemId);
       const lastIndex = allIds.indexOf(lastSelectedSelectedId);
@@ -182,38 +232,24 @@ export const useColumnManagement = ({
         setSelectedSelectedIds(newSelectedIds);
         setLastSelectedSelectedId(itemId);
         console.log(`Range selection from ${lastSelectedSelectedId} to ${itemId}, ${newSelectedIds.length} items selected`);
-      } else {
-        // Fall back to single selection if range boundaries not found
-        handleSingleToggle();
+        return;
       }
+    }
+
+    // For regular selection
+    if (isMultiSelect) {
+      setSelectedSelectedIds(prev => {
+        if (prev.includes(itemId)) {
+          return prev.filter(id => id !== itemId);
+        } else {
+          return [...prev, itemId];
+        }
+      });
     } else {
-      // Handle single selection toggle
-      handleSingleToggle();
+      setSelectedSelectedIds([itemId]);
     }
     
-    function handleSingleToggle() {
-      setSelectedSelectedIds(prev => {
-        const isCurrentlySelected = prev.includes(itemId);
-        let newSelection: string[];
-        
-        if (isMultiSelect) {
-          // Ctrl/Cmd+click: toggle this item, keep others
-          newSelection = isCurrentlySelected
-            ? prev.filter(id => id !== itemId)
-            : [...prev, itemId];
-        } else {
-          // Simple click: select only this item, unless it's already the only selected item
-          newSelection = (isCurrentlySelected && prev.length === 1)
-            ? [] // Deselect if it's the only selected item
-            : [itemId]; // Otherwise select just this one
-        }
-        
-        console.log(`Single toggle ${itemId}, now selected: ${newSelection.join(', ')}`);
-        return newSelection;
-      });
-      
-      setLastSelectedSelectedId(itemId);
-    }
+    setLastSelectedSelectedId(itemId);
   }, [selectedColumns, selectedSelectedIds, lastSelectedSelectedId, columnGroups]);
   
   // Select all available columns
@@ -403,56 +439,121 @@ export const useColumnManagement = ({
   
   // Reorder column groups
   const reorderColumnGroups = useCallback((groupIds: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => {
-    if (!dropPosition.targetId || !dropPosition.targetId.startsWith('group_')) {
-      return; // Need a valid target group
-    }
-    
-    const targetGroupId = dropPosition.targetId.substring(6); // Remove 'group_' prefix
-    
-    // Skip if dragging onto itself
-    if (groupIds.length === 1 && groupIds[0] === targetGroupId) {
-      return;
-    }
-    
     // Get current group order
     const currentGroupIds = columnGroups.map(group => group.id);
     
     // Create a set of group IDs to move
     const groupIdSet = new Set(groupIds);
     
-    // Find the target index
-    const targetIndex = currentGroupIds.indexOf(targetGroupId);
-    if (targetIndex === -1) return; // Target not found
-    
-    // Remove the groups to be moved
-    const remainingGroupIds = currentGroupIds.filter(id => !groupIdSet.has(id));
-    
-    // Calculate the insertion index
-    let insertIndex;
-    if (dropPosition.insertBefore) {
-      insertIndex = remainingGroupIds.indexOf(targetGroupId);
-    } else {
-      insertIndex = remainingGroupIds.indexOf(targetGroupId) + 1;
+    // If we're dragging onto a group
+    if (dropPosition.targetId && dropPosition.targetId.startsWith('group_')) {
+      const targetGroupId = dropPosition.targetId.substring(6); // Remove 'group_' prefix
+      
+      // Skip if dragging onto itself
+      if (groupIds.length === 1 && groupIds[0] === targetGroupId) {
+        return;
+      }
+      
+      // Find the target index
+      const targetIndex = currentGroupIds.indexOf(targetGroupId);
+      if (targetIndex === -1) return; // Target not found
+      
+      // Remove the groups to be moved
+      const remainingGroupIds = currentGroupIds.filter(id => !groupIdSet.has(id));
+      
+      // Calculate the insertion index
+      let insertIndex;
+      if (dropPosition.insertBefore) {
+        insertIndex = remainingGroupIds.indexOf(targetGroupId);
+      } else {
+        insertIndex = remainingGroupIds.indexOf(targetGroupId) + 1;
+      }
+      
+      // Handle boundary cases
+      if (insertIndex < 0) insertIndex = 0;
+      if (insertIndex > remainingGroupIds.length) insertIndex = remainingGroupIds.length;
+      
+      // Create the new order of group IDs
+      const newGroupIds = [
+        ...remainingGroupIds.slice(0, insertIndex),
+        ...groupIds,
+        ...remainingGroupIds.slice(insertIndex)
+      ];
+      
+      // Create updated groups array based on new order
+      const groupMap = new Map(columnGroups.map(group => [group.id, group]));
+      const updatedGroups = newGroupIds.map(id => groupMap.get(id)!);
+      
+      // Update column groups
+      onColumnGroupsChange(updatedGroups);
+      return;
     }
     
-    // Handle boundary cases
-    if (insertIndex < 0) insertIndex = 0;
-    if (insertIndex > remainingGroupIds.length) insertIndex = remainingGroupIds.length;
-    
-    // Create the new order of group IDs
-    const newGroupIds = [
-      ...remainingGroupIds.slice(0, insertIndex),
-      ...groupIds,
-      ...remainingGroupIds.slice(insertIndex)
-    ];
-    
-    // Create updated groups array based on new order
-    const groupMap = new Map(columnGroups.map(group => [group.id, group]));
-    const updatedGroups = newGroupIds.map(id => groupMap.get(id)!);
-    
-    // Update column groups
-    onColumnGroupsChange(updatedGroups);
-  }, [columnGroups, onColumnGroupsChange]);
+    // If we're dragging between regular columns
+    if (dropPosition.targetId) {
+      // Get current selected columns
+      const currentSelectedIds = selectedColumns.map(col => col.id);
+      
+      // Find the target index
+      const targetIndex = currentSelectedIds.indexOf(dropPosition.targetId);
+      if (targetIndex === -1) return; // Target not found
+      
+      // For each group being moved, get its member columns
+      const columnsToInsert: string[] = [];
+      groupIds.forEach(groupId => {
+        const group = columnGroups.find(g => g.id === groupId);
+        if (group) {
+          // Add all columns from this group that exist in selected columns
+          columnsToInsert.push(...group.columnIds.filter(id => 
+            selectedColumns.some(col => col.id === id)
+          ));
+        }
+      });
+      
+      // Create a set of columns to remove
+      const columnsToRemove = new Set(columnsToInsert);
+      
+      // Remove the columns from their current positions
+      const remainingIds = currentSelectedIds.filter(id => !columnsToRemove.has(id));
+      
+      // Calculate the insertion index
+      let insertIndex;
+      if (dropPosition.insertBefore) {
+        insertIndex = remainingIds.indexOf(dropPosition.targetId);
+      } else {
+        insertIndex = remainingIds.indexOf(dropPosition.targetId) + 1;
+      }
+      
+      // Handle boundary cases
+      if (insertIndex < 0) insertIndex = 0;
+      if (insertIndex > remainingIds.length) insertIndex = remainingIds.length;
+      
+      // Insert the columns at the new position
+      const updatedIds = [
+        ...remainingIds.slice(0, insertIndex),
+        ...columnsToInsert,
+        ...remainingIds.slice(insertIndex)
+      ];
+      
+      // Update selected columns order
+      onSelectedColumnsChange(updatedIds);
+      
+      // Update the group structure to maintain the group order
+      const updatedGroups = columnGroups.map(group => {
+        if (groupIdSet.has(group.id)) {
+          // For groups being moved, update their columnIds to match the new order
+          return {
+            ...group,
+            columnIds: group.columnIds.filter(id => updatedIds.includes(id))
+          };
+        }
+        return group;
+      }).filter(group => group.columnIds.length > 0);
+      
+      // Update column groups
+      onColumnGroupsChange(updatedGroups);
+    }
+  }, [columnGroups, selectedColumns, onColumnGroupsChange, onSelectedColumnsChange]);
   
   // Reorder selected columns - ensures that all selected items move together
   const reorderSelectedItems = useCallback((ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => {
@@ -726,7 +827,17 @@ export const useColumnManagement = ({
     
     // Update column groups
     onColumnGroupsChange(updatedGroups);
-  }, [columnGroups, onColumnGroupsChange]);
+    
+    // Ensure the columns remain in the selected columns list
+    const currentSelectedIds = selectedColumns.map(col => col.id);
+    const columnsToKeep = currentSelectedIds.filter(id => !columnIds.includes(id));
+    const columnsToAdd = columnIds.filter(id => !currentSelectedIds.includes(id));
+    
+    if (columnsToAdd.length > 0) {
+      // Add any columns that aren't already in the selected list
+      onSelectedColumnsChange([...columnsToKeep, ...columnsToAdd]);
+    }
+  }, [columnGroups, selectedColumns, onColumnGroupsChange, onSelectedColumnsChange]);
   
   // Rename a column group
   const renameColumnGroup = useCallback((groupId: string, newName: string) => {
@@ -852,7 +963,12 @@ export const useColumnManagement = ({
     
     // Helper functions
     getSelectedAvailableCount: () => selectedAvailableIds.length,
-    getSelectedSelectedCount: () => selectedSelectedIds.length
+    getSelectedSelectedCount: () => selectedSelectedIds.length,
+    searchTerm,
+    setSearchTerm,
+    searchOnlyAvailable,
+    setSearchOnlyAvailable,
+    filteredSelectedColumns,
   };
 };
 

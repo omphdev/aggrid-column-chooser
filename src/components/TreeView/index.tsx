@@ -76,65 +76,63 @@ const TreeView: React.FC<TreeViewProps> = ({
     handleDrop: handleEnhancedDrop
   } = useTreeDragDrop(onDrop);
   
-// Replace the handleDragStart function in src/components/TreeView/index.tsx
-
-// Handle drag start for any item (tree or flat)
-const handleDragStart = useCallback((e: React.DragEvent, item: ColumnItem) => {
-  console.log(`Drag start in ${source} panel for item:`, item.id);
-  console.log('Currently selected IDs:', selectedIdsRef.current);
-  
-  // Determine which items to include in the drag
-  let dragIds: string[] = [];
-  
-  // If the item being dragged is in the selection, include all selected items
-  if (selectedIdsRef.current.includes(item.id)) {
-    dragIds = [...selectedIdsRef.current];
-    console.log(`Item ${item.id} is part of multiselection, dragging all ${dragIds.length} selected items`);
-  } else {
-    // Otherwise, just include this one item
-    dragIds = [item.id];
-    console.log(`Item ${item.id} is not part of multiselection, dragging single item`);
-  }
-  
-  // Set drag data
-  const dragText = dragIds.length > 1 ? `${dragIds.length} columns` : item.name;
-  
-  // Set the drag data directly with all needed information
-  e.dataTransfer.effectAllowed = 'move';
-  
-  // Add source group information if applicable
-  const sourceGroupId = item.groupId || item.parentGroupId;
-  
-  e.dataTransfer.setData('text/plain', JSON.stringify({
-    ids: dragIds,
-    source,
-    itemName: dragText,
-    sourceGroupId: sourceGroupId
-  }));
-  
-  // Add "being dragged" visual effect to all selected items
-  if (dragIds.length > 1) {
-    // Apply visual effect to all selected items
-    document.querySelectorAll(`.tree-view[data-source="${source}"] .selected`).forEach(el => {
-      el.classList.add('dragging');
-    });
-  }
-  
-  // Call the parent's drag handler
-  onDragStart(e, item);
-  
-  // Clean up on drag end
-  const handleDragEnd = () => {
-    // Remove dragging class from all elements
-    document.querySelectorAll('.dragging').forEach(el => {
-      el.classList.remove('dragging');
-    });
+  // Handle drag start for any item (tree or flat)
+  const handleDragStart = useCallback((e: React.DragEvent, item: ColumnItem) => {
+    console.log(`Drag start in ${source} panel for item:`, item.id);
+    console.log('Currently selected IDs:', selectedIdsRef.current);
     
-    document.removeEventListener('dragend', handleDragEnd);
-  };
-  
-  document.addEventListener('dragend', handleDragEnd);
-}, [onDragStart, source]);
+    // Determine which items to include in the drag
+    let dragIds: string[] = [];
+    
+    // If the item being dragged is in the selection, include all selected items
+    if (selectedIdsRef.current.includes(item.id)) {
+      dragIds = [...selectedIdsRef.current];
+      console.log(`Item ${item.id} is part of multiselection, dragging all ${dragIds.length} selected items`);
+    } else {
+      // Otherwise, just include this one item
+      dragIds = [item.id];
+      console.log(`Item ${item.id} is not part of multiselection, dragging single item`);
+    }
+    
+    // Set drag data
+    const dragText = dragIds.length > 1 ? `${dragIds.length} columns` : item.name;
+    
+    // Set the drag data directly with all needed information
+    e.dataTransfer.effectAllowed = 'move';
+    
+    // Add source group information if applicable
+    const sourceGroupId = item.groupId || item.parentGroupId;
+    
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      ids: dragIds,
+      source,
+      itemName: dragText,
+      sourceGroupId: sourceGroupId
+    }));
+    
+    // Add "being dragged" visual effect to all selected items
+    if (dragIds.length > 1) {
+      // Apply visual effect to all selected items
+      document.querySelectorAll(`.tree-view[data-source="${source}"] .selected`).forEach(el => {
+        el.classList.add('dragging');
+      });
+    }
+    
+    // Call the parent's drag handler
+    onDragStart(e, item);
+    
+    // Clean up on drag end
+    const handleDragEnd = () => {
+      // Remove dragging class from all elements
+      document.querySelectorAll('.dragging').forEach(el => {
+        el.classList.remove('dragging');
+      });
+      
+      document.removeEventListener('dragend', handleDragEnd);
+    };
+    
+    document.addEventListener('dragend', handleDragEnd);
+  }, [onDragStart, source]);
   
   // Handle drag over a group header
   const handleGroupHeaderDragOver = useCallback((e: React.DragEvent, groupId: string) => {

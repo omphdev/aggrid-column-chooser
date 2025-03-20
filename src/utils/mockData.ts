@@ -6,12 +6,44 @@ import { ColumnDefinition } from '../types';
 export const generateMockColumnDefinitions = (): ColumnDefinition[] => {
   const columns: ColumnDefinition[] = [];
   
-  // Generate 100 columns with guaranteed uniqueness
-  for (let i = 1; i <= 100; i++) {
+  // Business-related column names organized by categories
+  const columnNames = [
+    // Customer Information
+    'Customer ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Address', 'City', 'State', 'Country', 'Postal Code',
+    // Order Information
+    'Order ID', 'Order Date', 'Order Status', 'Payment Method', 'Total Amount', 'Tax Amount', 'Shipping Cost', 'Discount',
+    // Product Information
+    'Product ID', 'Product Name', 'Category', 'Subcategory', 'Brand', 'Unit Price', 'Stock Level', 'SKU', 'Description',
+    // Financial Information
+    'Account Number', 'Balance', 'Credit Limit', 'Payment Due Date', 'Last Payment Date', 'Interest Rate', 'Monthly Payment',
+    // Employee Information
+    'Employee ID', 'Department', 'Position', 'Hire Date', 'Salary', 'Manager ID', 'Performance Rating', 'Training Status',
+    // Inventory Information
+    'Warehouse Location', 'Bin Number', 'Reorder Point', 'Lead Time', 'Supplier ID', 'Last Restock Date', 'Inventory Value',
+    // Sales Information
+    'Sales Region', 'Sales Rep', 'Quota', 'Actual Sales', 'Commission Rate', 'Territory', 'Customer Segment',
+    // Project Information
+    'Project ID', 'Project Name', 'Start Date', 'End Date', 'Status', 'Priority', 'Budget', 'Actual Cost',
+    // Time Tracking
+    'Time Entry ID', 'Date', 'Hours Worked', 'Task Description', 'Billable', 'Approval Status', 'Client ID',
+    // Analytics
+    'Conversion Rate', 'Customer Lifetime Value', 'Churn Rate', 'Net Promoter Score', 'Customer Satisfaction',
+    // System Information
+    'Created Date', 'Last Modified', 'Modified By', 'Version', 'System Status', 'Audit Trail', 'Security Level'
+  ];
+  
+  // Generate columns with meaningful names
+  for (let i = 0; i < columnNames.length; i++) {
     columns.push({
-      id: `column_${i}`,
-      field: `column_${i}`,
-      groupPath: [`Group ${Math.ceil(i / 10)}`, `Group ${Math.ceil(i / 10 * 2)}`, `Column ${i}`]
+      id: `column_${i + 1}`,
+      field: `column_${i + 1}`,
+      groupPath: [
+        // Group by category (roughly every 10 columns)
+        `Group ${Math.ceil((i + 1) / 10)}`,
+        // Subgroup (roughly every 5 columns)
+        `Subgroup ${Math.ceil((i + 1) / 5)}`,
+        columnNames[i]
+      ]
     });
   }
   
@@ -26,7 +58,7 @@ export const generateMockData = (): any[] => {
   return Array.from({ length: 100 }, (_, rowIndex) => {
     const rowData: Record<string, any> = {};
     
-    // Generate data for all 100 columns
+    // Generate data for all columns
     for (let i = 1; i <= 100; i++) {
       const fieldName = `column_${i}`;
       

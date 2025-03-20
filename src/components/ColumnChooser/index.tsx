@@ -37,14 +37,34 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
       <div className="column-chooser-header">
         <h3 className="column-chooser-title">Column Chooser</h3>
         
-        <label className="flat-view-toggle">
-          <input
-            type="checkbox"
-            checked={isFlatView}
-            onChange={(e) => columnManagement.setFlatView(e.target.checked)}
-          />
-          <span>Available Columns Tree View</span>
-        </label>
+        <div className="column-chooser-controls">
+          <div className="search-container">
+            <input
+              type="text"
+              placeholder="Search columns..."
+              value={columnManagement.searchTerm}
+              onChange={(e) => columnManagement.setSearchTerm(e.target.value)}
+              className="search-input"
+            />
+            <label className="search-toggle">
+              <input
+                type="checkbox"
+                checked={columnManagement.searchOnlyAvailable}
+                onChange={(e) => columnManagement.setSearchOnlyAvailable(e.target.checked)}
+              />
+              <span>Filter only on available</span>
+            </label>
+          </div>
+
+          <label className="flat-view-toggle">
+            <input
+              type="checkbox"
+              checked={isFlatView}
+              onChange={(e) => columnManagement.setFlatView(e.target.checked)}
+            />
+            <span>Available Columns Tree View</span>
+          </label>
+        </div>
       </div>
       
       <div className="column-chooser-panels">
@@ -63,7 +83,7 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
         />
         
         <SelectedColumns 
-          columns={selectedColumns}
+          columns={columnManagement.filteredSelectedColumns}
           selectedIds={columnManagement.selectedSelectedIds}
           leafCount={columnManagement.selectedLeafCount}
           toggleSelect={columnManagement.toggleSelectSelected}
