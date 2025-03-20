@@ -35,6 +35,9 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
     e.preventDefault();
     e.stopPropagation();
     
+    // Get the target group ID if present
+    const targetGroupId = element.getAttribute('data-group-id') || null;
+    
     // Try getting the drag data (for Firefox compatibility)
     let dragData;
     try {
@@ -76,7 +79,7 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
     setActiveDropTarget(itemId);
     setInsertBefore(newInsertBefore);
     
-    console.log(`Drag over: target=${itemId}, insertBefore=${newInsertBefore}, isGroup=${isGroup}`);
+    console.log(`Drag over: target=${itemId}, insertBefore=${newInsertBefore}, targetGroupId=${targetGroupId}, isGroup=${isGroup}`);
   }, [clearDropIndicators]);
   
   // Handle drag leave
@@ -135,27 +138,34 @@ export const useTreeDragDrop = (onDrop: (e: React.DragEvent) => void) => {
       }
       
       dragData = JSON.parse(dataText);
+      console.log('Drag data on drop:', dragData);
     } catch (err) {
       console.error('Invalid drag data:', err);
       clearDropIndicators();
       return;
     }
     
+    // Get the target group ID if available
+    const targetElement = e.target as HTMLElement;
+    const targetGroupId = targetElement.closest('[data-group-id]')?.getAttribute('data-group-id') || null;
+    
     // Set the drop position
     if (activeDropTarget) {
       // If we have an active target, use it with our insert position
       enhancedEvent.dropPosition = {
         targetId: activeDropTarget,
-        insertBefore: insertBefore
+        insertBefore: insertBefore,
+        targetGroupId: targetGroupId // Add group context to the drop
       };
-      console.log('Drop position:', enhancedEvent.dropPosition);
+      console.log('Drop position with group context:', enhancedEvent.dropPosition);
     } else {
       // If dropping in an empty area, default to appending at the end
       enhancedEvent.dropPosition = { 
         targetId: undefined,
-        insertBefore: false 
+        insertBefore: false,
+        targetGroupId: targetGroupId // Still include group context even for empty areas
       };
-      console.log('Dropping at the end (no target)');
+      console.log('Dropping at the end (no target) with group:', targetGroupId);
     }
     
     // Reset state and clean up

@@ -86,6 +86,41 @@ export const useColumnManagement = ({
     [selectedColumns]
   );
 
+  // Helper function to find which group contains a set of columns
+  const findGroupContainingColumns = useCallback((columnIds: string[]): string | null => {
+    // If no column IDs provided, return null
+    if (!columnIds || columnIds.length === 0) return null;
+    
+    // Convert to Set for faster lookups
+    const idSet = new Set(columnIds);
+    
+    // Find the first group that contains all the columns
+    for (const group of columnGroups) {
+      // Check if all columnIds are in this group
+      const containsAll = columnIds.every(id => group.columnIds.includes(id));
+      if (containsAll) {
+        return group.id;
+      }
+    }
+    
+    return null;
+  }, [columnGroups]);
+
+  // Helper function to find which group contains a specific column
+  const findGroupContainingColumn = useCallback((columnId: string): string | null => {
+    // If no column ID provided, return null
+    if (!columnId) return null;
+    
+    // Find the group that contains this column
+    for (const group of columnGroups) {
+      if (group.columnIds.includes(columnId)) {
+        return group.id;
+      }
+    }
+    
+    return null;
+  }, [columnGroups]);
+
   // Toggle expand available column groups
   const toggleExpandAvailable = useCallback((itemId: string) => {
     // Create updated column structure with toggled expand state
@@ -279,9 +314,34 @@ export const useColumnManagement = ({
     setLastSelectedSelectedId(null);
     console.log('Cleared selected selection');
   }, []);
+
+    // Add columns to an existing group
+    const addColumnsToGroup = useCallback((columnIds: string[], groupId: string) => {
+      // Find the group
+      const groupIndex = columnGroups.findIndex(g => g.id === groupId);
+      if (groupIndex === -1) return;
+      
+      // Get valid column IDs (only those that exist in selected columns)
+      const validColumnIds = columnIds.filter(id => 
+        selectedColumns.some(col => col.id === id)
+      );
+      
+      if (validColumnIds.length === 0) return;
+      
+      // Create updated groups - first remove these columns from any existing groups
+      const updatedGroups = columnGroups.map(group => ({
+        ...group,
+        columnIds: group.id === groupId
+          ? [...new Set([...group.columnIds, ...validColumnIds])] // Add to target group, ensure uniqueness
+          : group.columnIds.filter(id => !validColumnIds.includes(id)) // Remove from other groups
+      })).filter(group => group.columnIds.length > 0); // Remove empty groups
+      
+      // Update column groups
+      onColumnGroupsChange(updatedGroups);
+    }, [columnGroups, selectedColumns, onColumnGroupsChange]);
   
   // Move items from available to selected
-  const moveItemsToSelected = useCallback((ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => {
+  const moveItemsToSelected = useCallback((ids: string[], dropPosition: { targetId?: string, insertBefore: boolean, targetGroupId?: string | null }) => {
     console.log(`Moving to selected: ${ids.join(', ')}, targetId: ${dropPosition.targetId || 'none'}, insertBefore: ${dropPosition.insertBefore}`);
     
     // Collect items to move
@@ -336,6 +396,25 @@ export const useColumnManagement = ({
     
     // Determine new order of selected column IDs
     let newSelectedIds: string[];
+    
+    // Handle dropping into a group
+    if (dropPosition.targetGroupId) {
+      // Add to existing list and then add to group
+      newSelectedIds = [
+        ...currentSelectedIds.filter(id => !idSet.has(id)),
+        ...itemsToMove.map(item => item.id)
+      ];
+      
+      // Notify parent of changes
+      onSelectedColumnsChange(newSelectedIds);
+      
+      // Add to group with a small delay to ensure state is updated
+      setTimeout(() => {
+        addColumnsToGroup(itemsToMove.map(item => item.id), dropPosition.targetGroupId!);
+      }, 100);
+      
+      return;
+    }
     
     if (dropPosition.targetId) {
       // Check if target is a group
@@ -399,7 +478,7 @@ export const useColumnManagement = ({
     // Clear selections
     clearSelectionAvailable();
     clearSelectionSelected();
-  }, [availableColumns, selectedColumns, onSelectedColumnsChange, clearSelectionAvailable, clearSelectionSelected]);
+  }, [availableColumns, selectedColumns, onSelectedColumnsChange, clearSelectionAvailable, clearSelectionSelected, addColumnsToGroup]);
   
   // Move items from selected to available
   const moveItemsToAvailable = useCallback((ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => {
@@ -556,7 +635,7 @@ export const useColumnManagement = ({
   }, [columnGroups, selectedColumns, onColumnGroupsChange, onSelectedColumnsChange]);
   
   // Reorder selected columns - ensures that all selected items move together
-  const reorderSelectedItems = useCallback((ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => {
+  const reorderSelectedItems = useCallback((ids: string[], dropPosition: { targetId?: string, insertBefore: boolean, targetGroupId?: string | null }) => {
     if (!dropPosition.targetId) {
       return; // Need a target to reorder
     }
@@ -567,6 +646,7 @@ export const useColumnManagement = ({
     }
     
     console.log(`Reordering in selected: ${ids.join(', ')}, target: ${dropPosition.targetId}, insertBefore: ${dropPosition.insertBefore}`);
+    console.log('Drop position details:', dropPosition);
     
     // Check if we're reordering a group
     const isGroupReorder = ids.some(id => id.startsWith('group_'));
@@ -576,6 +656,87 @@ export const useColumnManagement = ({
       reorderColumnGroups(ids, dropPosition);
       return;
     }
+    
+    // Identify source and target groups
+    // If targetGroupId is provided in the drop position, use it
+    const targetGroupId = dropPosition.targetGroupId || findGroupContainingColumn(dropPosition.targetId);
+    
+    // Find the source group for the dragged items
+    const sourceGroupId = findGroupContainingColumns(ids);
+    
+    console.log(`Source group: ${sourceGroupId}, Target group: ${targetGroupId}`);
+    
+    // If both source and target are in the same group, we need to reorder within the group
+    if (sourceGroupId && targetGroupId && sourceGroupId === targetGroupId) {
+      console.log(`Reordering within group ${sourceGroupId}`);
+      
+      // Find the group
+      const groupIndex = columnGroups.findIndex(g => g.id === sourceGroupId);
+      if (groupIndex === -1) return;
+      
+      const group = columnGroups[groupIndex];
+      
+      // Get the current order of column IDs in the group
+      const currentGroupColumnIds = [...group.columnIds];
+      
+      // Create a set of the IDs being moved
+      const movingIdSet = new Set(ids);
+      
+      // Remove the IDs to be moved
+      const remainingIds = currentGroupColumnIds.filter(id => !movingIdSet.has(id));
+      
+      // Find insertion index
+      const targetIndex = remainingIds.indexOf(dropPosition.targetId);
+      
+      // If target not found in the remaining IDs, find its original position
+      let insertIndex: number;
+      if (targetIndex === -1) {
+        // Get original position of target
+        const originalIndex = currentGroupColumnIds.indexOf(dropPosition.targetId);
+        if (originalIndex === -1) return; // Exit if target not found at all
+        
+        // Calculate insert position based on whether we're inserting before or after
+        insertIndex = dropPosition.insertBefore ? originalIndex : originalIndex + 1;
+        
+        // Adjust for the removed items if needed
+        const adjustedInsertIndex = ids.filter(id => {
+          const idIndex = currentGroupColumnIds.indexOf(id);
+          return idIndex !== -1 && idIndex < insertIndex;
+        }).length;
+        
+        insertIndex -= adjustedInsertIndex;
+      } else {
+        // Normal case - target found in remaining IDs
+        insertIndex = dropPosition.insertBefore ? targetIndex : targetIndex + 1;
+      }
+      
+      // Handle boundary cases
+      if (insertIndex < 0) insertIndex = 0;
+      if (insertIndex > remainingIds.length) insertIndex = remainingIds.length;
+      
+      // Create the new column order
+      const newGroupColumnIds = [
+        ...remainingIds.slice(0, insertIndex),
+        ...ids,
+        ...remainingIds.slice(insertIndex)
+      ];
+      
+      console.log('Old group order:', currentGroupColumnIds);
+      console.log('New group order:', newGroupColumnIds);
+      
+      // Update the group with the new column order
+      const updatedGroups = [...columnGroups];
+      updatedGroups[groupIndex] = {
+        ...group,
+        columnIds: newGroupColumnIds
+      };
+      
+      // Update the column groups
+      onColumnGroupsChange(updatedGroups);
+      return;
+    }
+    
+    // Handle normal reordering (outside of groups or between groups)
     
     // Get current selected columns
     const currentSelectedIds = selectedColumns.map(col => col.id);
@@ -617,7 +778,66 @@ export const useColumnManagement = ({
     
     // Update the selected columns order
     onSelectedColumnsChange(newSelectedIds);
-  }, [selectedColumns, onSelectedColumnsChange, reorderColumnGroups]);
+    
+    // Handle group membership changes
+    if (sourceGroupId) {
+      // If moving from a group to outside or to another group
+      let updatedGroups = [...columnGroups];
+      
+      if (targetGroupId && sourceGroupId !== targetGroupId) {
+        // Moving from one group to another
+        updatedGroups = updatedGroups.map(group => {
+          if (group.id === sourceGroupId) {
+            // Remove from source group
+            return {
+              ...group,
+              columnIds: group.columnIds.filter(id => !idSet.has(id))
+            };
+          } else if (group.id === targetGroupId) {
+            // Add to target group
+            return {
+              ...group,
+              columnIds: [...group.columnIds, ...ids]
+            };
+          }
+          return group;
+        });
+      } else {
+        // Moving from a group to outside a group
+        updatedGroups = updatedGroups.map(group => {
+          if (group.id === sourceGroupId) {
+            // Remove from source group
+            return {
+              ...group,
+              columnIds: group.columnIds.filter(id => !idSet.has(id))
+            };
+          }
+          return group;
+        });
+      }
+      
+      // Filter out any empty groups
+      updatedGroups = updatedGroups.filter(group => group.columnIds.length > 0);
+      
+      // Update column groups
+      onColumnGroupsChange(updatedGroups);
+    } else if (targetGroupId) {
+      // Moving from outside a group into a group
+      const updatedGroups = columnGroups.map(group => {
+        if (group.id === targetGroupId) {
+          // Add to target group
+          return {
+            ...group,
+            columnIds: [...group.columnIds, ...ids]
+          };
+        }
+        return group;
+      });
+      
+      // Update column groups
+      onColumnGroupsChange(updatedGroups);
+    }
+  }, [selectedColumns, onSelectedColumnsChange, reorderColumnGroups, columnGroups, onColumnGroupsChange, findGroupContainingColumns, findGroupContainingColumn]);
   
   // Move selected items up as a group
   const moveSelectedUp = useCallback(() => {
@@ -772,31 +992,6 @@ export const useColumnManagement = ({
     
     // Add to existing groups
     const updatedGroups = [...columnGroups, newGroup];
-    
-    // Update column groups
-    onColumnGroupsChange(updatedGroups);
-  }, [columnGroups, selectedColumns, onColumnGroupsChange]);
-  
-  // Add columns to an existing group
-  const addColumnsToGroup = useCallback((columnIds: string[], groupId: string) => {
-    // Find the group
-    const groupIndex = columnGroups.findIndex(g => g.id === groupId);
-    if (groupIndex === -1) return;
-    
-    // Get valid column IDs (only those that exist in selected columns)
-    const validColumnIds = columnIds.filter(id => 
-      selectedColumns.some(col => col.id === id)
-    );
-    
-    if (validColumnIds.length === 0) return;
-    
-    // Create updated groups - first remove these columns from any existing groups
-    const updatedGroups = columnGroups.map(group => ({
-      ...group,
-      columnIds: group.id === groupId
-        ? [...new Set([...group.columnIds, ...validColumnIds])] // Add to target group, ensure uniqueness
-        : group.columnIds.filter(id => !validColumnIds.includes(id)) // Remove from other groups
-    })).filter(group => group.columnIds.length > 0); // Remove empty groups
     
     // Update column groups
     onColumnGroupsChange(updatedGroups);
@@ -965,7 +1160,7 @@ export const useColumnManagement = ({
     getSelectedAvailableCount: () => selectedAvailableIds.length,
     getSelectedSelectedCount: () => selectedSelectedIds.length,
     searchTerm,
-    setSearchTerm,
+  setSearchTerm,
     searchOnlyAvailable,
     setSearchOnlyAvailable,
     filteredSelectedColumns,

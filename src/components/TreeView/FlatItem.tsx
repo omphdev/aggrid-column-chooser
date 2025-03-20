@@ -66,15 +66,21 @@ const FlatItem: React.FC<FlatItemProps> = ({
       ids: [item.id],
       source,
       itemName: item.name,
-      sourceGroupId: groupId // Include source group if applicable
+      sourceGroupId: groupId, // Include source group if applicable
+      inGroup: !!groupId // Explicitly indicate if it's in a group
     };
+    
+    console.log('Starting drag with data:', dragData);
     
     // Set drag data
     e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
     e.dataTransfer.effectAllowed = 'move';
     
     // Call parent drag start handler
-    onDragStart(e, item);
+    onDragStart(e, {
+      ...item,
+      parentGroupId: groupId // Add group context to the item
+    });
     
     // Clean up on drag end
     const handleDragEnd = () => {
@@ -91,7 +97,11 @@ const FlatItem: React.FC<FlatItemProps> = ({
     e.stopPropagation();
     
     if (onDragOver && itemRef.current) {
-      onDragOver(e, itemRef.current, item.id);
+      // Add group context to the dragover event
+      const enhancedEvent = e as any;
+      enhancedEvent.targetGroupId = groupId;
+      
+      onDragOver(enhancedEvent, itemRef.current, item.id);
     }
   };
   
@@ -110,7 +120,8 @@ const FlatItem: React.FC<FlatItemProps> = ({
     enableReordering ? 'reorderable' : '',
     groupName ? 'grouped-item' : '',
     isDragging ? 'dragging' : '',
-    canDragToGroup ? 'can-drag-to-group' : ''
+    canDragToGroup ? 'can-drag-to-group' : '',
+    groupId ? 'in-group' : ''
   ].filter(Boolean).join(' ');
   
   return (
