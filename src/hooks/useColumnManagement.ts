@@ -147,8 +147,8 @@ export const useColumnManagement = ({
     console.log(`Toggle select available: ${itemId}, multiSelect: ${isMultiSelect}, rangeSelect: ${isRangeSelect}`);
     
     if (isRangeSelect && lastSelectedAvailableId) {
-      // Get all available column IDs
-      const allIds = getAllItemIds(availableColumns);
+      // Get all available column IDs from filtered columns
+      const allIds = getAllItemIds(filteredAvailableColumns);
       const currentIndex = allIds.indexOf(itemId);
       const lastIndex = allIds.indexOf(lastSelectedAvailableId);
       
@@ -183,7 +183,7 @@ export const useColumnManagement = ({
     }
     
     setLastSelectedAvailableId(itemId);
-  }, [availableColumns, selectedAvailableIds, lastSelectedAvailableId]);
+  }, [availableColumns, selectedAvailableIds, lastSelectedAvailableId, filteredAvailableColumns]);
   
   // Toggle selection handling for selected columns
   const toggleSelectSelected = useCallback((itemId: string, isMultiSelect: boolean, isRangeSelect: boolean) => {
@@ -1160,7 +1160,7 @@ export const useColumnManagement = ({
     getSelectedAvailableCount: () => selectedAvailableIds.length,
     getSelectedSelectedCount: () => selectedSelectedIds.length,
     searchTerm,
-  setSearchTerm,
+    setSearchTerm,
     searchOnlyAvailable,
     setSearchOnlyAvailable,
     filteredSelectedColumns,

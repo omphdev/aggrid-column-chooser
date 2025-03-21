@@ -308,3 +308,85 @@ export function removeSelectedFromAvailable(
   
   return filterSelectedItems(availableColumns);
 }
+
+// Get all leaf node IDs from a tree of columns
+export const getAllLeafIds = (items: ColumnItem[]): string[] => {
+  const result: string[] = [];
+  
+  const collectIds = (itemList: ColumnItem[]) => {
+    for (const item of itemList) {
+      if (item.field) { // Only collect leaf nodes with fields
+        result.push(item.id);
+      }
+      
+      if (item.children && item.children.length > 0) {
+        collectIds(item.children);
+      }
+    }
+  };
+  
+  collectIds(items);
+  return result;
+};
+
+// Get all parent node IDs from a tree of columns
+export const getAllParentIds = (items: ColumnItem[]): string[] => {
+  const result: string[] = [];
+  
+  const collectIds = (itemList: ColumnItem[]) => {
+    for (const item of itemList) {
+      if (item.children && item.children.length > 0) {
+        result.push(item.id);
+        collectIds(item.children);
+      }
+    }
+  };
+  
+  collectIds(items);
+  return result;
+};
+
+// Find a group containing specific columns
+export const findGroupContainingColumns = (groups: ColumnItem[], columnIds: string[]): ColumnItem | null => {
+  for (const group of groups) {
+    if (group.children) {
+      const groupColumnIds = getAllLeafIds(group.children);
+      if (columnIds.every(id => groupColumnIds.includes(id))) {
+        return group;
+      }
+    }
+  }
+  return null;
+};
+
+// Get the depth of a column in the tree
+export const getColumnDepth = (items: ColumnItem[], targetId: string, currentDepth = 0): number => {
+  for (const item of items) {
+    if (item.id === targetId) {
+      return currentDepth;
+    }
+    if (item.children && item.children.length > 0) {
+      const depth = getColumnDepth(item.children, targetId, currentDepth + 1);
+      if (depth !== -1) {
+        return depth;
+      }
+    }
+  }
+  return -1;
+};
+
+// Get the path to a column in the tree
+export const getColumnPath = (items: ColumnItem[], targetId: string, currentPath: string[] = []): string[] | null => {
+  for (const item of items) {
+    if (item.id === targetId) {
+      return [...currentPath, item.id];
+    }
+    if (item.children && item.children.length > 0) {
+      const path = getColumnPath(item.children, targetId, [...currentPath, item.id]);
+      if (path) {
+        return path;
+      }
+    }
+  }
+  return null;
+};
