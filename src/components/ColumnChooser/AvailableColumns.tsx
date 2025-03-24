@@ -1,24 +1,9 @@
+// src/components/ColumnChooser/AvailableColumns.jsx
 import React from 'react';
-import { ColumnItem } from '../../types';
 import TreeView from '../TreeView';
-import './AvailableColumns.css'; // Add this CSS import
+import { cx } from '../../utils/styleUtils';
 
-interface AvailableColumnsProps {
-  columns: ColumnItem[];
-  selectedIds: string[];
-  leafCount: number;
-  toggleExpand: (id: string) => void;
-  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
-  selectAll: () => void;
-  clearSelection: () => void;
-  getSelectedCount: () => number;
-  moveItemsToSelected: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
-  moveItemsToAvailable?: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
-  onDoubleClick: (id: string) => void;
-  title?: string;
-}
-
-const AvailableColumns: React.FC<AvailableColumnsProps> = ({
+const AvailableColumns = ({
   columns,
   selectedIds,
   leafCount,
@@ -30,16 +15,17 @@ const AvailableColumns: React.FC<AvailableColumnsProps> = ({
   moveItemsToSelected,
   moveItemsToAvailable,
   onDoubleClick,
-  title = "Available Columns"
+  title = "Available Columns",
+  classes
 }) => {
   // Handle drag start - just pass through, TreeView will handle it
-  const handleDragStart = (e: React.DragEvent, item: ColumnItem) => {
+  const handleDragStart = (e, item) => {
     // Handled by TreeView component
     console.log('Drag start in AvailableColumns for item:', item.id);
   };
   
   // Handle drop - process drops from the Selected panel
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e) => {
     e.preventDefault();
     
     try {
@@ -54,7 +40,7 @@ const AvailableColumns: React.FC<AvailableColumnsProps> = ({
       console.log('Drop in available columns:', data);
       
       // Get drop position from the event
-      const positionedEvent = e as any;
+      const positionedEvent = e;
       const dropPosition = positionedEvent.dropPosition || { insertBefore: true };
       
       // Only handle drops from the selected panel
@@ -75,12 +61,12 @@ const AvailableColumns: React.FC<AvailableColumnsProps> = ({
   };
   
   // Handle double-click to move an item
-  const handleDoubleClick = (item: ColumnItem) => {
+  const handleDoubleClick = (item) => {
     onDoubleClick(item.id);
   };
   
   return (
-    <div className="available-columns-container">
+    <div className={classes.availableColumnsContainer}>
       <TreeView
         items={columns}
         selectedIds={selectedIds}
@@ -97,6 +83,7 @@ const AvailableColumns: React.FC<AvailableColumnsProps> = ({
         source="available"
         onDoubleClick={handleDoubleClick}
         countChildren={true}
+        classes={classes}
       />
     </div>
   );

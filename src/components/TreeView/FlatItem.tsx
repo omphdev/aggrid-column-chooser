@@ -1,26 +1,8 @@
+// src/components/TreeView/FlatItem.jsx
 import React, { useRef, useState } from 'react';
-import { ColumnItem } from '../../types';
+import { cx } from '../../utils/styleUtils';
 
-interface FlatItemProps {
-  item: ColumnItem;
-  index: number;
-  flatIndex?: number;
-  isSelected: boolean;
-  onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
-  onSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
-  onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void;
-  onDragLeave?: () => void;
-  groupName?: string;
-  showGroupLabels?: boolean;
-  source: 'available' | 'selected';
-  onDoubleClick?: (item: ColumnItem) => void;
-  enableReordering?: boolean;
-  onRemoveFromGroup?: (columnIds: string[]) => void;
-  canDragToGroup?: boolean; // New prop to enable drag-to-group
-  groupId?: string; // The group this item belongs to, if any
-}
-
-const FlatItem: React.FC<FlatItemProps> = ({
+const FlatItem = ({
   item,
   index,
   flatIndex,
@@ -36,18 +18,20 @@ const FlatItem: React.FC<FlatItemProps> = ({
   enableReordering = false,
   onRemoveFromGroup,
   canDragToGroup = true,
-  groupId
+  groupId,
+  classes
 }) => {
-  const itemRef = useRef<HTMLDivElement>(null);
+  const itemRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   
   // Handle click for selection
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = (e) => {
     onSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
   };
   
   // Handle double click to move item
-  const handleDoubleClick = (e: React.MouseEvent) => {
+  const handleDoubleClick = (e) => {
     e.stopPropagation();
     if (onDoubleClick) {
       onDoubleClick(item);
@@ -55,7 +39,7 @@ const FlatItem: React.FC<FlatItemProps> = ({
   };
   
   // Handle drag start - enhanced to include group info
-  const handleItemDragStart = (e: React.DragEvent) => {
+  const handleItemDragStart = (e) => {
     e.stopPropagation();
     
     // Set dragging state
@@ -66,8 +50,8 @@ const FlatItem: React.FC<FlatItemProps> = ({
       ids: [item.id],
       source,
       itemName: item.name,
-      sourceGroupId: groupId, // Include source group if applicable
-      inGroup: !!groupId // Explicitly indicate if it's in a group
+      sourceGroupId: groupId,
+      inGroup: !!groupId
     };
     
     console.log('Starting drag with data:', dragData);
@@ -79,7 +63,7 @@ const FlatItem: React.FC<FlatItemProps> = ({
     // Call parent drag start handler
     onDragStart(e, {
       ...item,
-      parentGroupId: groupId // Add group context to the item
+      parentGroupId: groupId
     });
     
     // Clean up on drag end
@@ -92,13 +76,13 @@ const FlatItem: React.FC<FlatItemProps> = ({
   };
   
   // Handle dragover
-  const handleItemDragOver = (e: React.DragEvent) => {
+  const handleItemDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (onDragOver && itemRef.current) {
       // Add group context to the dragover event
-      const enhancedEvent = e as any;
+      const enhancedEvent = e;
       enhancedEvent.targetGroupId = groupId;
       
       onDragOver(enhancedEvent, itemRef.current, item.id);
@@ -106,23 +90,28 @@ const FlatItem: React.FC<FlatItemProps> = ({
   };
   
   // Handle remove from group
-  const handleRemoveFromGroup = (e: React.MouseEvent) => {
+  const handleRemoveFromGroup = (e) => {
     e.stopPropagation();
     if (onRemoveFromGroup) {
       onRemoveFromGroup([item.id]);
     }
   };
   
-  // Determine CSS classes
-  const itemClasses = [
-    'flat-item',
-    isSelected ? 'selected' : '',
-    enableReordering ? 'reorderable' : '',
-    groupName ? 'grouped-item' : '',
-    isDragging ? 'dragging' : '',
-    canDragToGroup ? 'can-drag-to-group' : '',
-    groupId ? 'in-group' : ''
-  ].filter(Boolean).join(' ');
+  // Handle mouse enter/leave for hover effects
+  const handleMouseEnter = () => setIsHovered(true);
+  const handleMouseLeave = () => setIsHovered(false);
+  
+  // Generate class names based on state
+  const itemClasses = cx(
+    classes.flatItem,
+    isSelected ? classes.flatItemSelected : '',
+    enableReordering ? classes.reorderable : '',
+    groupName ? classes.flatItemGrouped : '',
+    isDragging ? classes.flatItemDragging : '',
+    canDragToGroup ? classes.flatItemDragToGroup : '',
+    groupId ? 'in-group' : '',
+    isSelected && groupName ? classes.flatItemGroupedSelected : ''
+  );
   
   return (
     <div 
@@ -134,6 +123,8 @@ const FlatItem: React.FC<FlatItemProps> = ({
       onDragLeave={onDragLeave}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       data-item-id={item.id}
       data-item-index={index}
       data-flat-index={flatIndex !== undefined ? flatIndex : index}
@@ -144,25 +135,29 @@ const FlatItem: React.FC<FlatItemProps> = ({
     >
       {/* Reorder handle if reordering is enabled */}
       {enableReordering && (
-        <div className="reorder-handle" title="Drag to reorder">
-          <span className="drag-icon">⋮⋮</span>
+        <div className={classes.reorderHandle} title="Drag to reorder">
+          <span className={classes.dragIcon}>⋮⋮</span>
         </div>
       )}
       
       {/* Show group label if enabled */}
       {showGroupLabels && groupName && (
-        <div className="group-label">{groupName}</div>
+        <div className={classes.groupLabel}>{groupName}</div>
       )}
       
       {/* Item name */}
-      <span className="item-name">{item.name}</span>
+      <span className={classes.itemName}>{item.name}</span>
       
       {/* Remove from group button if applicable */}
       {onRemoveFromGroup && (
         <button
-          className="remove-from-group-btn"
+          className={cx(
+            classes.removeFromGroupBtn,
+            isHovered ? classes.removeButtonVisible : ''
+          )}
           onClick={handleRemoveFromGroup}
           title={`Remove from ${groupName || 'group'}`}
+          onMouseEnter={() => setIsHovered(true)}
         >
           ✕
         </button>

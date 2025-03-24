@@ -1,38 +1,11 @@
+// src/components/TreeView/index.jsx
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ColumnItem } from '../../types';
+import { cx } from '../../utils/styleUtils';
 import TreeItem from './TreeItem';
 import FlatItem from './FlatItem';
 import { useTreeDragDrop } from './hooks/useTreeDragDrop';
-import { countLeafNodes } from '../../utils/columnUtils';
-import './TreeView.css';
 
-interface TreeViewProps {
-  items: ColumnItem[];
-  selectedIds: string[];
-  title: string;
-  onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
-  onDrop: (e: React.DragEvent) => void;
-  toggleExpand: (id: string) => void;
-  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
-  onSelectAll: () => void;
-  onClearSelection: () => void;
-  selectedCount: number;
-  totalCount: number;
-  flatView?: boolean;
-  showGroupLabels?: boolean;
-  source: 'available' | 'selected';
-  hideHeader?: boolean;
-  onDoubleClick?: (item: ColumnItem) => void;
-  countChildren?: boolean;
-  enableReordering?: boolean;
-  renderGroupHeader?: (groupId: string) => React.ReactNode;
-  onContextMenu?: (e: React.MouseEvent, itemIds?: string[]) => void;
-  onDropOnGroup?: (groupId: string, columnIds: string[]) => void;
-  onRemoveFromGroup?: (columnIds: string[], groupId: string) => void;
-  moveItemsToSelected?: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
-}
-
-const TreeView: React.FC<TreeViewProps> = ({
+const TreeView = ({
   items,
   selectedIds,
   title,
@@ -55,7 +28,8 @@ const TreeView: React.FC<TreeViewProps> = ({
   onContextMenu,
   onDropOnGroup,
   onRemoveFromGroup,
-  moveItemsToSelected
+  moveItemsToSelected,
+  classes
 }) => {
   // Keep a reference to the selected IDs for use in drag events
   const selectedIdsRef = useRef(selectedIds);
@@ -64,9 +38,9 @@ const TreeView: React.FC<TreeViewProps> = ({
   }, [selectedIds]);
   
   // State for group drag targets
-  const [groupDragTarget, setGroupDragTarget] = useState<string | null>(null);
-  const [groupContentDragTarget, setGroupContentDragTarget] = useState<string | null>(null);
-  const [emptyGroupDragTarget, setEmptyGroupDragTarget] = useState<string | null>(null);
+  const [groupDragTarget, setGroupDragTarget] = useState(null);
+  const [groupContentDragTarget, setGroupContentDragTarget] = useState(null);
+  const [emptyGroupDragTarget, setEmptyGroupDragTarget] = useState(null);
   
   // Use custom hook for drag and drop functionality
   const {
@@ -77,12 +51,12 @@ const TreeView: React.FC<TreeViewProps> = ({
   } = useTreeDragDrop(onDrop);
   
   // Handle drag start for any item (tree or flat)
-  const handleDragStart = useCallback((e: React.DragEvent, item: ColumnItem) => {
+  const handleDragStart = useCallback((e, item) => {
     console.log(`Drag start in ${source} panel for item:`, item.id);
     console.log('Currently selected IDs:', selectedIdsRef.current);
     
     // Determine which items to include in the drag
-    let dragIds: string[] = [];
+    let dragIds = [];
     
     // If the item being dragged is in the selection, include all selected items
     if (selectedIdsRef.current.includes(item.id)) {
@@ -135,21 +109,21 @@ const TreeView: React.FC<TreeViewProps> = ({
   }, [onDragStart, source]);
   
   // Handle drag over a group header
-  const handleGroupHeaderDragOver = useCallback((e: React.DragEvent, groupId: string) => {
+  const handleGroupHeaderDragOver = useCallback((e, groupId) => {
     e.preventDefault();
     e.stopPropagation();
     setGroupDragTarget(groupId);
   }, []);
   
   // Handle drag over group content area
-  const handleGroupContentDragOver = useCallback((e: React.DragEvent, groupId: string) => {
+  const handleGroupContentDragOver = useCallback((e, groupId) => {
     e.preventDefault();
     e.stopPropagation();
     setGroupContentDragTarget(groupId);
   }, []);
   
   // Handle drop on a group
-  const handleDropOnGroup = useCallback((e: React.DragEvent, groupId: string) => {
+  const handleDropOnGroup = useCallback((e, groupId) => {
     e.preventDefault();
     e.stopPropagation();
     
@@ -192,60 +166,16 @@ const TreeView: React.FC<TreeViewProps> = ({
     setEmptyGroupDragTarget(null);
   }, [onDropOnGroup, moveItemsToSelected]);
   
-  // Handle drop in a group (between items)
-  const handleDropInGroup = useCallback((e: React.DragEvent, groupId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!onDropOnGroup) return;
-    
-    try {
-      // Get the drag data
-      const dataText = e.dataTransfer.getData('text/plain');
-      if (!dataText) {
-        console.error('No drag data found');
-        return;
-      }
-      
-      const data = JSON.parse(dataText);
-      
-      if (data.source && data.ids && data.ids.length > 0) {
-        // Handle drop differently based on source
-        if (data.source === 'available') {
-          // First move from available to selected
-          if (moveItemsToSelected) {
-            moveItemsToSelected(data.ids, { insertBefore: false });
-            
-            // Then add to group with a delay to ensure state is updated
-            setTimeout(() => {
-              onDropOnGroup(groupId, data.ids);
-            }, 100);
-          }
-        } else if (data.source === 'selected') {
-          // Direct add to group from selected
-          onDropOnGroup(groupId, data.ids);
-        }
-      }
-    } catch (err) {
-      console.error('Error handling drop in group:', err);
-    }
-    
-    // Reset drag targets
-    setGroupDragTarget(null);
-    setGroupContentDragTarget(null);
-    setEmptyGroupDragTarget(null);
-  }, [onDropOnGroup, moveItemsToSelected]);
-  
   // Handle context menu (right-click)
-  const handleContextMenu = useCallback((e: React.MouseEvent, itemIds?: string[]) => {
+  const handleContextMenu = useCallback((e, itemIds) => {
     if (onContextMenu) {
       e.preventDefault();
       onContextMenu(e, itemIds);
     }
   }, [onContextMenu]);
   
-  // Check if an item is selected - this is the key function for selection state
-  const isItemSelected = useCallback((id: string) => {
+  // Check if an item is selected
+  const isItemSelected = useCallback((id) => {
     return selectedIds.includes(id);
   }, [selectedIds]);
   
@@ -253,10 +183,10 @@ const TreeView: React.FC<TreeViewProps> = ({
   const flatItems = useMemo(() => {
     if (!flatView) return [];
     
-    const result: Array<{ item: ColumnItem, groupName?: string, flatIndex: number }> = [];
+    const result = [];
     let flatIndex = 0;
     
-    const processItem = (item: ColumnItem, groupName?: string) => {
+    const processItem = (item, groupName) => {
       if (item.field && (!item.children || item.children.length === 0)) {
         // This is a leaf node
         result.push({ 
@@ -278,14 +208,14 @@ const TreeView: React.FC<TreeViewProps> = ({
   }, [items, flatView]);
   
   // Handle double-click
-  const handleItemDoubleClick = useCallback((item: ColumnItem) => {
+  const handleItemDoubleClick = useCallback((item) => {
     if (onDoubleClick) {
       onDoubleClick(item);
     }
   }, [onDoubleClick]);
   
   // Handle remove from group
-  const handleRemoveFromGroup = useCallback((columnIds: string[], groupId: string) => {
+  const handleRemoveFromGroup = useCallback((columnIds, groupId) => {
     if (onRemoveFromGroup) {
       onRemoveFromGroup(columnIds, groupId);
     }
@@ -293,7 +223,7 @@ const TreeView: React.FC<TreeViewProps> = ({
   
   return (
     <div 
-      className="tree-view"
+      className={classes.treeView}
       onDragOver={handleContainerDragOver}
       onDrop={handleEnhancedDrop}
       onDragLeave={handleDragLeave}
@@ -302,23 +232,23 @@ const TreeView: React.FC<TreeViewProps> = ({
     >
       {/* Header with actions - only show if not hidden */}
       {!hideHeader && (
-        <div className="tree-view-header">
-          <div className="header-left">
-            <span className="title">{title}</span>
-            <span className="column-count">{totalCount} columns</span>
+        <div className={classes.treeViewHeader}>
+          <div className={classes.headerLeft}>
+            <span className={classes.titleText}>{title}</span>
+            <span className={classes.columnCount}>{totalCount} columns</span>
           </div>
-          <div className="actions">
+          <div className={classes.actions}>
             {selectedCount > 0 && (
-              <span className="selected-count">{selectedCount} selected</span>
+              <span className={classes.selectedCount}>{selectedCount} selected</span>
             )}
-            <button className="select-all-btn" onClick={onSelectAll}>Select All</button>
-            <button className="clear-btn" onClick={onClearSelection}>Clear</button>
+            <button className={classes.actionButton} onClick={onSelectAll}>Select All</button>
+            <button className={classes.actionButton} onClick={onClearSelection}>Clear</button>
           </div>
         </div>
       )}
       
       {/* Content area */}
-      <div className="tree-view-content">
+      <div className={classes.treeViewContent}>
         {items.length > 0 ? (
           flatView ? (
             // Flat view - only leaf nodes
@@ -338,6 +268,7 @@ const TreeView: React.FC<TreeViewProps> = ({
                 source={source}
                 onDoubleClick={handleItemDoubleClick}
                 enableReordering={enableReordering}
+                classes={classes}
               />
             ))
           ) : (
@@ -348,24 +279,33 @@ const TreeView: React.FC<TreeViewProps> = ({
                 return (
                   <div 
                     key={item.id} 
-                    className={`group-container ${groupDragTarget === item.groupId ? 'drag-over' : ''}`}
+                    className={cx(
+                      classes.groupContainer,
+                      groupDragTarget === item.groupId ? classes.groupContainerDragOver : ''
+                    )}
                   >
                     {/* Render custom group header with enhanced drop handling */}
                     <div 
-                      className={`group-header-wrapper ${groupDragTarget === item.groupId ? 'drag-over' : ''}`}
-                      onDragOver={(e) => handleGroupHeaderDragOver(e, item.groupId!)}
+                      className={cx(
+                        classes.groupHeaderWrapper,
+                        groupDragTarget === item.groupId ? classes.groupHeaderWrapperDragOver : ''
+                      )}
+                      onDragOver={(e) => handleGroupHeaderDragOver(e, item.groupId)}
                       onDragLeave={() => setGroupDragTarget(null)}
-                      onDrop={(e) => handleDropOnGroup(e, item.groupId!)}
+                      onDrop={(e) => handleDropOnGroup(e, item.groupId)}
                     >
                       {renderGroupHeader(item.groupId)}
                     </div>
                     
                     {/* Render group children with enhanced drop handling */}
                     <div 
-                      className={`group-content ${groupContentDragTarget === item.groupId ? 'drag-over' : ''}`}
-                      onDragOver={(e) => handleGroupContentDragOver(e, item.groupId!)}
+                      className={cx(
+                        classes.groupContent,
+                        groupContentDragTarget === item.groupId ? classes.groupContentDragOver : ''
+                      )}
+                      onDragOver={(e) => handleGroupContentDragOver(e, item.groupId)}
                       onDragLeave={() => setGroupContentDragTarget(null)}
-                      onDrop={(e) => handleDropInGroup(e, item.groupId!)}
+                      onDrop={(e) => handleDropOnGroup(e, item.groupId)}
                     >
                       {item.children?.map((child, childIndex) => {
                         // Add parent group ID to the child item
@@ -390,9 +330,10 @@ const TreeView: React.FC<TreeViewProps> = ({
                             onDoubleClick={handleItemDoubleClick}
                             enableReordering={enableReordering}
                             onRemoveFromGroup={item.groupId ? 
-                              (columnIds) => handleRemoveFromGroup(columnIds, item.groupId!) : 
+                              (columnIds) => handleRemoveFromGroup(columnIds, item.groupId) : 
                               undefined}
                             groupId={item.groupId}
+                            classes={classes}
                           />
                         );
                       })}
@@ -400,14 +341,17 @@ const TreeView: React.FC<TreeViewProps> = ({
                       {/* Empty placeholder for dropping when group is empty */}
                       {(!item.children || item.children.length === 0) && (
                         <div 
-                          className={`empty-group-placeholder ${emptyGroupDragTarget === item.groupId ? 'drag-over' : ''}`}
+                          className={cx(
+                            classes.emptyGroupPlaceholder,
+                            emptyGroupDragTarget === item.groupId ? classes.emptyGroupPlaceholderDragOver : ''
+                          )}
                           onDragOver={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setEmptyGroupDragTarget(item.groupId!);
+                            setEmptyGroupDragTarget(item.groupId);
                           }}
                           onDragLeave={() => setEmptyGroupDragTarget(null)}
-                          onDrop={(e) => handleDropOnGroup(e, item.groupId!)}
+                          onDrop={(e) => handleDropOnGroup(e, item.groupId)}
                         >
                           Drag columns here
                         </div>
@@ -435,12 +379,13 @@ const TreeView: React.FC<TreeViewProps> = ({
                   countChildren={countChildren}
                   enableReordering={enableReordering}
                   selectedIds={selectedIds} // Pass selectedIds to enable checking children
+                  classes={classes}
                 />
               );
             })
           )
         ) : (
-          <div className="empty-message drag-target">Drag columns here</div>
+          <div className={classes.emptyMessage}>Drag columns here</div>
         )}
       </div>
     </div>
