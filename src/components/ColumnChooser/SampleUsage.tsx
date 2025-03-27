@@ -7,143 +7,85 @@ import {
 } from './index';
 
 const SampleUsage: React.FC = () => {
-  // Sample data
-  const initialColumnDefs: ExtendedColDef[] = [
-    { 
-      field: 'id', 
-      headerName: 'ID', 
-      groupPath: ['System'] 
+  // Generate 100 sequential columns
+  const generateColumns = (): ExtendedColDef[] => {
+    const columns: ExtendedColDef[] = [];
+    
+    for (let i = 1; i <= 100; i++) {
+      // Assign columns to different groups based on ranges
+      let groupPath: string[] = [];
+      
+      if (i <= 20) {
+        groupPath = ['Group A', `Subgroup A${Math.ceil(i/5)}`];
+      } else if (i <= 40) {
+        groupPath = ['Group B', `Subgroup B${Math.ceil((i-20)/5)}`];
+      } else if (i <= 60) {
+        groupPath = ['Group C', `Subgroup C${Math.ceil((i-40)/5)}`];
+      } else if (i <= 80) {
+        groupPath = ['Group D', `Subgroup D${Math.ceil((i-60)/5)}`];
+      } else {
+        groupPath = ['Group E', `Subgroup E${Math.ceil((i-80)/5)}`];
+      }
+      
+      columns.push({
+        field: `field${i}`,
+        headerName: `Column ${i}`,
+        groupPath: groupPath
+      });
+    }
+    
+    return columns;
+  };
+  
+  const initialColumnDefs = generateColumns();
+
+  // Initial column groups
+  const initialColumnGroups: ColumnGroup[] = [
+    {
+      headerName: 'Essential Columns',
+      children: ['field1', 'field2', 'field3', 'field4', 'field5']
     },
-    { 
-      field: 'firstName', 
-      headerName: 'First Name', 
-      groupPath: ['Personal', 'Name'] 
+    {
+      headerName: 'Financial Columns',
+      children: ['field21', 'field22', 'field23', 'field24', 'field25']
     },
-    { 
-      field: 'lastName', 
-      headerName: 'Last Name', 
-      groupPath: ['Personal', 'Name'] 
+    {
+      headerName: 'User Information',
+      children: ['field41', 'field42', 'field43', 'field44', 'field45']
     },
-    { 
-      field: 'email', 
-      headerName: 'Email', 
-      groupPath: ['Contact'] 
+    {
+      headerName: 'Statistics',
+      children: ['field61', 'field62', 'field63', 'field64', 'field65']
     },
-    { 
-      field: 'phone', 
-      headerName: 'Phone', 
-      groupPath: ['Contact'] 
-    },
-    { 
-      field: 'department', 
-      headerName: 'Department', 
-      groupPath: ['Work'] 
-    },
-    { 
-      field: 'position', 
-      headerName: 'Position', 
-      groupPath: ['Work'] 
-    },
-    { 
-      field: 'startDate', 
-      headerName: 'Start Date', 
-      groupPath: ['Work', 'Dates'] 
-    },
-    { 
-      field: 'endDate', 
-      headerName: 'End Date', 
-      groupPath: ['Work', 'Dates'] 
-    },
-    { 
-      field: 'salary', 
-      headerName: 'Salary', 
-      groupPath: ['Compensation'] 
-    },
-    { 
-      field: 'bonus', 
-      headerName: 'Bonus', 
-      groupPath: ['Compensation'] 
-    },
-    { 
-      field: 'address', 
-      headerName: 'Address', 
-      groupPath: ['Personal', 'Location'] 
-    },
-    { 
-      field: 'city', 
-      headerName: 'City', 
-      groupPath: ['Personal', 'Location'] 
-    },
-    { 
-      field: 'state', 
-      headerName: 'State', 
-      groupPath: ['Personal', 'Location'] 
-    },
-    { 
-      field: 'zipCode', 
-      headerName: 'Zip Code', 
-      groupPath: ['Personal', 'Location'] 
+    {
+      headerName: 'Additional Information',
+      children: ['field81', 'field82', 'field83', 'field84', 'field85']
     }
   ];
 
-  // Sample row data
-  const rowData = [
-    { 
-      id: 1, 
-      firstName: 'John', 
-      lastName: 'Doe', 
-      email: 'john.doe@example.com', 
-      phone: '555-123-4567', 
-      department: 'Engineering', 
-      position: 'Software Engineer', 
-      startDate: '2022-01-15', 
-      endDate: '', 
-      salary: 85000, 
-      bonus: 5000, 
-      address: '123 Main St', 
-      city: 'Austin', 
-      state: 'TX', 
-      zipCode: '78701' 
-    },
-    { 
-      id: 2, 
-      firstName: 'Jane', 
-      lastName: 'Smith', 
-      email: 'jane.smith@example.com', 
-      phone: '555-987-6543', 
-      department: 'Marketing', 
-      position: 'Marketing Manager', 
-      startDate: '2021-03-10', 
-      endDate: '', 
-      salary: 92000, 
-      bonus: 7500, 
-      address: '456 Oak Ave', 
-      city: 'Seattle', 
-      state: 'WA', 
-      zipCode: '98101' 
-    },
-    { 
-      id: 3, 
-      firstName: 'Bob', 
-      lastName: 'Johnson', 
-      email: 'bob.johnson@example.com', 
-      phone: '555-555-5555', 
-      department: 'Sales', 
-      position: 'Sales Representative', 
-      startDate: '2022-06-01', 
-      endDate: '', 
-      salary: 78000, 
-      bonus: 15000, 
-      address: '789 Pine St', 
-      city: 'New York', 
-      state: 'NY', 
-      zipCode: '10001' 
+  // Generate sample row data
+  const generateRowData = (rowCount: number) => {
+    const rows = [];
+    
+    for (let i = 1; i <= rowCount; i++) {
+      const row: Record<string, any> = { id: i };
+      
+      // Add all fields to the row
+      for (let j = 1; j <= 100; j++) {
+        row[`field${j}`] = `Field ${j}`;
+      }
+      
+      rows.push(row);
     }
-  ];
+    
+    return rows;
+  };
+
+  const rowData = generateRowData(5);
 
   // State for column defs and groups
   const [columnDefs, setColumnDefs] = useState<ExtendedColDef[]>(initialColumnDefs);
-  const [columnGroups, setColumnGroups] = useState<ColumnGroup[]>([]);
+  const [columnGroups, setColumnGroups] = useState<ColumnGroup[]>(initialColumnGroups);
 
   // Handle column changes
   const handleColumnChanged = (event: ColumnChangeEvent) => {
