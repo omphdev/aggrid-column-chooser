@@ -4,12 +4,13 @@ import { GridReadyEvent, ColDef, ColGroupDef } from 'ag-grid-community';
 import { ColumnItem, ColumnGroup } from '../types';
 import ColumnChooser from './ColumnChooser';
 import { convertToTreeStructure } from '../utils/columnUtils';
+import { initializeDragSilhouette, cleanupDragSilhouette } from '../utils/dragUtils';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import 'ag-grid-enterprise';
 
 interface GridProps {
-  // All possible columns (both available and selected)
+  // All available column definitions
   columnDefs: ColDef[];
   // Data for the grid
   rowData: any[];
@@ -37,12 +38,12 @@ const Grid: React.FC<GridProps> = ({
   height = '600px',
   useFlatView = false
 }) => {
-  // State for tracking selected columns
+  // State for columns and groups
   const [selectedColumnIds, setSelectedColumnIds] = useState<string[]>(initialSelectedColumnIds);
   const [selectedColumns, setSelectedColumns] = useState<ColumnItem[]>([]);
   const [availableColumns, setAvailableColumns] = useState<ColumnItem[]>([]);
   const [columnGroups, setColumnGroups] = useState<ColumnGroup[]>(initialColumnGroups);
-  const [isFlatView, setIsFlatView] = useState(useFlatView);
+  const [isFlatView, setIsFlatView] = useState<boolean>(useFlatView);
   
   // Default column definition for AG Grid
   const defaultColDef = React.useMemo<ColDef>(() => ({
@@ -53,7 +54,16 @@ const Grid: React.FC<GridProps> = ({
     filter: true
   }), []);
 
-  // Convert AG Grid columns to our internal format
+  // Initialize drag and drop system
+  useEffect(() => {
+    initializeDragSilhouette();
+    
+    return () => {
+      cleanupDragSilhouette();
+    };
+  }, []);
+
+  // Convert AG Grid column definitions to our internal format
   const convertColumnsFormat = useCallback((columns: ColDef[]) => {
     return columns.map(col => ({
       id: col.field || `col_${Math.random().toString(36).substring(2, 9)}`,
@@ -192,7 +202,7 @@ const Grid: React.FC<GridProps> = ({
     columnGroups.forEach(group => groupMap.set(group.id, group));
     
     // Process selected columns to generate grid column definitions
-    const result: ColDef[] = [];
+    const result: (ColDef | ColGroupDef)[] = [];
     const processedGroups = new Set<string>();
     
     selectedColumns.forEach(col => {
@@ -241,6 +251,11 @@ const Grid: React.FC<GridProps> = ({
   // Grid ready event handler
   const onGridReady = useCallback((params: GridReadyEvent) => {
     console.log('Grid is ready');
+  }, []);
+  
+  // Handle flat view toggle
+  const handleFlatViewChange = useCallback((flatView: boolean) => {
+    setIsFlatView(flatView);
   }, []);
   
   return (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { ColumnItem, ColumnGroup } from '../../types';
 import AvailableColumns from './AvailableColumns';
 import SelectedColumns from './SelectedColumns';
@@ -22,6 +22,10 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
   onSelectedColumnsChange,
   onColumnGroupsChange
 }) => {
+  // Local state for search
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchOnlyAvailable, setSearchOnlyAvailable] = useState(true);
+  
   // Use the column management hook for all operations
   const columnManagement = useColumnManagement({
     availableColumns,
@@ -31,6 +35,16 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
     onSelectedColumnsChange,
     onColumnGroupsChange
   });
+  
+  // Handle search term change
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  }, []);
+  
+  // Handle search filter toggle
+  const handleSearchFilterToggle = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchOnlyAvailable(e.target.checked);
+  }, []);
   
   return (
     <div className="column-chooser">
@@ -42,28 +56,20 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
             <input
               type="text"
               placeholder="Search columns..."
-              value={columnManagement.searchTerm}
-              onChange={(e) => columnManagement.setSearchTerm(e.target.value)}
-              className="search-input"
+              value={searchTerm}
+              onChange={handleSearchChange}
+              className={"search-input"}
             />
-            <label className="search-toggle">
+            <label className={"search-toggle"}>
               <input
                 type="checkbox"
-                checked={columnManagement.searchOnlyAvailable}
-                onChange={(e) => columnManagement.setSearchOnlyAvailable(e.target.checked)}
+                checked={searchOnlyAvailable}
+                onChange={handleSearchFilterToggle}
+                className={"checkbox"}
               />
               <span>Filter only on available</span>
             </label>
           </div>
-
-          <label className="flat-view-toggle">
-            <input
-              type="checkbox"
-              checked={isFlatView}
-              onChange={(e) => columnManagement.setFlatView(e.target.checked)}
-            />
-            <span>Available Columns Tree View</span>
-          </label>
         </div>
       </div>
       

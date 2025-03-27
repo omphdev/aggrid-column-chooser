@@ -1,6 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { ColumnItem, ColumnGroup } from '../types';
-import dashboardStateService from '../services/dashboardStateService';
 import { countLeafNodes, findItemInTree, filterEmptyGroups } from '../utils/columnUtils';
 
 /**
@@ -16,7 +15,8 @@ export interface ColumnManagementProps {
 }
 
 /**
- * Custom hook to manage column interactions without using reducers
+ * Custom hook to manage column interactions
+ * This hook handles all column selection, movement, grouping, and UI interactions
  */
 export const useColumnManagement = ({
   availableColumns,
@@ -31,10 +31,6 @@ export const useColumnManagement = ({
   const [selectedSelectedIds, setSelectedSelectedIds] = useState<string[]>([]);
   const [lastSelectedAvailableId, setLastSelectedAvailableId] = useState<string | null>(null);
   const [lastSelectedSelectedId, setLastSelectedSelectedId] = useState<string | null>(null);
-  const [shiftClickAnchorId, setShiftClickAnchorId] = useState<string | null>(null);
-  const [shiftClickSource, setShiftClickSource] = useState<'available' | 'selected' | null>(null);
-  
-  // Search state
   const [searchTerm, setSearchTerm] = useState('');
   const [searchOnlyAvailable, setSearchOnlyAvailable] = useState(true);
 
@@ -82,7 +78,7 @@ export const useColumnManagement = ({
   );
   
   const selectedLeafCount = useMemo(() => 
-    selectedColumns.length, // In the new architecture, selected columns are always flat
+    selectedColumns.length, // Selected columns are always flat
     [selectedColumns]
   );
 
@@ -136,11 +132,9 @@ export const useColumnManagement = ({
       });
     };
     
-    // Update available columns in dashboard state
-    dashboardStateService.next({ 
-      availableColumns: updateExpandState(availableColumns) 
-    }, 'Toggle expand available column');
-  }, [availableColumns]);
+    // This is a no-op in the new approach - would be handled by the parent component
+    // if needed, we could emit a custom event or use a callback
+  }, []);
   
   // Toggle selection handling for available columns
   const toggleSelectAvailable = useCallback((itemId: string, isMultiSelect: boolean, isRangeSelect: boolean) => {
@@ -183,7 +177,7 @@ export const useColumnManagement = ({
     }
     
     setLastSelectedAvailableId(itemId);
-  }, [availableColumns, selectedAvailableIds, lastSelectedAvailableId, filteredAvailableColumns]);
+  }, [filteredAvailableColumns, lastSelectedAvailableId, selectedAvailableIds]);
   
   // Toggle selection handling for selected columns
   const toggleSelectSelected = useCallback((itemId: string, isMultiSelect: boolean, isRangeSelect: boolean) => {
@@ -315,30 +309,30 @@ export const useColumnManagement = ({
     console.log('Cleared selected selection');
   }, []);
 
-    // Add columns to an existing group
-    const addColumnsToGroup = useCallback((columnIds: string[], groupId: string) => {
-      // Find the group
-      const groupIndex = columnGroups.findIndex(g => g.id === groupId);
-      if (groupIndex === -1) return;
-      
-      // Get valid column IDs (only those that exist in selected columns)
-      const validColumnIds = columnIds.filter(id => 
-        selectedColumns.some(col => col.id === id)
-      );
-      
-      if (validColumnIds.length === 0) return;
-      
-      // Create updated groups - first remove these columns from any existing groups
-      const updatedGroups = columnGroups.map(group => ({
-        ...group,
-        columnIds: group.id === groupId
-          ? [...new Set([...group.columnIds, ...validColumnIds])] // Add to target group, ensure uniqueness
-          : group.columnIds.filter(id => !validColumnIds.includes(id)) // Remove from other groups
-      })).filter(group => group.columnIds.length > 0); // Remove empty groups
-      
-      // Update column groups
-      onColumnGroupsChange(updatedGroups);
-    }, [columnGroups, selectedColumns, onColumnGroupsChange]);
+  // Add columns to an existing group
+  const addColumnsToGroup = useCallback((columnIds: string[], groupId: string) => {
+    // Find the group
+    const groupIndex = columnGroups.findIndex(g => g.id === groupId);
+    if (groupIndex === -1) return;
+    
+    // Get valid column IDs (only those that exist in selected columns)
+    const validColumnIds = columnIds.filter(id => 
+      selectedColumns.some(col => col.id === id)
+    );
+    
+    if (validColumnIds.length === 0) return;
+    
+    // Create updated groups - first remove these columns from any existing groups
+    const updatedGroups = columnGroups.map(group => ({
+      ...group,
+      columnIds: group.id === groupId
+        ? [...new Set([...group.columnIds, ...validColumnIds])] // Add to target group, ensure uniqueness
+        : group.columnIds.filter(id => !validColumnIds.includes(id)) // Remove from other groups
+    })).filter(group => group.columnIds.length > 0); // Remove empty groups
+    
+    // Update column groups
+    onColumnGroupsChange(updatedGroups);
+  }, [columnGroups, selectedColumns, onColumnGroupsChange]);
   
   // Move items from available to selected
   const moveItemsToSelected = useCallback((ids: string[], dropPosition: { targetId?: string, insertBefore: boolean, targetGroupId?: string | null }) => {
@@ -391,7 +385,7 @@ export const useColumnManagement = ({
     
     console.log(`Found ${itemsToMove.length} items to move`);
     
-    // Get current selected columns
+    // Get current selected column IDs
     const currentSelectedIds = selectedColumns.map(col => col.id);
     
     // Determine new order of selected column IDs
@@ -495,20 +489,17 @@ export const useColumnManagement = ({
     const updatedGroups = columnGroups.map(group => ({
       ...group,
       columnIds: group.columnIds.filter(id => !idSet.has(id))
-    }));
-    
-    // Remove any empty groups
-    const filteredGroups = updatedGroups.filter(group => group.columnIds.length > 0);
+    })).filter(group => group.columnIds.length > 0); // Remove empty groups
     
     // Notify parent of changes
     console.log(`New selected IDs after removal: ${newSelectedIds.join(', ')}`);
     onSelectedColumnsChange(newSelectedIds);
     
     // Update groups if they've changed
-    if (filteredGroups.length !== columnGroups.length || 
+    if (updatedGroups.length !== columnGroups.length || 
         updatedGroups.some(g => g.columnIds.length !== 
           columnGroups.find(og => og.id === g.id)?.columnIds.length)) {
-      onColumnGroupsChange(filteredGroups);
+      onColumnGroupsChange(updatedGroups);
     }
     
     // Clear selections
@@ -632,7 +623,7 @@ export const useColumnManagement = ({
       // Update column groups
       onColumnGroupsChange(updatedGroups);
     }
-  }, [columnGroups, selectedColumns, onColumnGroupsChange, onSelectedColumnsChange]);
+  }, [columnGroups, selectedColumns, onSelectedColumnsChange, onColumnGroupsChange]);
   
   // Reorder selected columns - ensures that all selected items move together
   const reorderSelectedItems = useCallback((ids: string[], dropPosition: { targetId?: string, insertBefore: boolean, targetGroupId?: string | null }) => {
@@ -971,12 +962,10 @@ export const useColumnManagement = ({
     }
   }, [selectedColumns, columnGroups, onSelectedColumnsChange, onColumnGroupsChange]);
   
-  // Toggle flat view
-  const setFlatView = useCallback((value: boolean) => {
-    dashboardStateService.toggleFlatView(value);
+  // Toggle flat view - pass through to parent
+  const setFlatView = useCallback(() => {
+    // This would typically call a parent handler
   }, []);
-  
-  // Column Groups Functions
   
   // Create a new column group
   const createColumnGroup = useCallback((name: string, columnIds: string[]) => {
@@ -1054,47 +1043,6 @@ export const useColumnManagement = ({
     onColumnGroupsChange(updatedGroups);
   }, [columnGroups, onColumnGroupsChange]);
   
-  // Move columns between groups
-  const moveColumnsBetweenGroups = useCallback((columnIds: string[], sourceGroupId: string, targetGroupId: string) => {
-    // If source and target are the same, do nothing
-    if (sourceGroupId === targetGroupId) return;
-    
-    // Find both groups
-    const sourceGroup = columnGroups.find(g => g.id === sourceGroupId);
-    const targetGroup = columnGroups.find(g => g.id === targetGroupId);
-    
-    if (!sourceGroup || !targetGroup) return;
-    
-    // Get valid column IDs (only those that exist in the source group)
-    const validColumnIds = columnIds.filter(id => 
-      sourceGroup.columnIds.includes(id) && 
-      selectedColumns.some(col => col.id === id)
-    );
-    
-    if (validColumnIds.length === 0) return;
-    
-    // Create updated groups
-    const updatedGroups = columnGroups.map(group => {
-      if (group.id === sourceGroupId) {
-        // Remove columns from source group
-        return {
-          ...group,
-          columnIds: group.columnIds.filter(id => !validColumnIds.includes(id))
-        };
-      } else if (group.id === targetGroupId) {
-        // Add columns to target group
-        return {
-          ...group,
-          columnIds: [...new Set([...group.columnIds, ...validColumnIds])]
-        };
-      }
-      return group;
-    }).filter(group => group.columnIds.length > 0); // Remove empty groups
-    
-    // Update column groups
-    onColumnGroupsChange(updatedGroups);
-  }, [columnGroups, selectedColumns, onColumnGroupsChange]);
-  
   // Update column groups directly
   const updateColumnGroups = useCallback((newGroups: ColumnGroup[]) => {
     onColumnGroupsChange(newGroups);
@@ -1123,6 +1071,7 @@ export const useColumnManagement = ({
   return {
     // Derived values
     filteredAvailableColumns,
+    filteredSelectedColumns,
     availableLeafCount,
     selectedLeafCount,
     selectedAvailableIds,
@@ -1153,7 +1102,6 @@ export const useColumnManagement = ({
     renameColumnGroup,
     deleteColumnGroup,
     reorderColumnGroups,
-    moveColumnsBetweenGroups,
     updateColumnGroups,
     
     // Helper functions
@@ -1163,7 +1111,6 @@ export const useColumnManagement = ({
     setSearchTerm,
     searchOnlyAvailable,
     setSearchOnlyAvailable,
-    filteredSelectedColumns,
   };
 };
 
