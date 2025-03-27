@@ -124,7 +124,12 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
   };
 
   // Handle drag start - modified to handle multiple selections
-  const handleDragStart = (item: DragItem, selectedIds: string[]) => {
+  const handleDragStart = (item: DragItem) => {
+    const selectedIds = 
+      item.source === 'available' 
+        ? selectedAvailableIds 
+        : selectedSelectedIds;
+    
     setDraggedItem({
       ...item,
       selectedIds: selectedIds.includes(item.id) ? selectedIds : [item.id]
@@ -213,6 +218,12 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
             operationType: 'ADD',
             index: insertIndex
           });
+          
+          // If dropping into a group, add the columns to that group
+          if (target.parentId) {
+            const columnIds = columnsToMove.map(col => col.id || col.field || '');
+            handleGroupColumnsChanged(target.parentId, [...getGroupColumnIds(target.parentId), ...columnIds]);
+          }
         }
       } else if (draggedItem.source === 'selected' && target.type === 'available') {
         // Moving from selected to available
@@ -233,18 +244,179 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
       const selectedIds = draggedItem.selectedIds || [draggedItem.id];
       
       // If there's only one item and we're dropping it in its original position, do nothing
-      if (selectedIds.length === 1 && target.id === draggedItem.id) {
+      if (selectedIds.length === 1 && target.id === draggedItem.id && !target.parentId && !draggedItem.parentId) {
         setDraggedItem(null);
         setDropTarget(null);
         return;
       }
       
+      // If dragging a group
+      if (draggedItem.type === 'group') {
+        // Handle dragging an entire group
+        handleDragGroup(draggedItem.id, target);
+      } else {
+        // Regular column reordering or moving in/out of groups
+        
+        // Determine if this is a group operation
+        const sourceGroupId = draggedItem.parentId;
+        const targetGroupId = target.parentId;
+        
+        if (sourceGroupId && targetGroupId && sourceGroupId === targetGroupId) {
+          // Reordering within the same group
+          const groupColumnIds = getGroupColumnIds(sourceGroupId);
+          
+          // Remove dragged items
+          const remainingIds = groupColumnIds.filter(id => !selectedIds.includes(id));
+          
+          // Find insertion point
+          let insertIndex = target.index !== undefined 
+            ? target.index 
+            : remainingIds.findIndex(id => id === target.id);
+          
+          if (insertIndex === -1) insertIndex = remainingIds.length;
+          
+          // Insert items at position
+          remainingIds.splice(insertIndex, 0, ...selectedIds);
+          
+          // Update group
+          handleGroupColumnsChanged(sourceGroupId, remainingIds);
+        } else if (sourceGroupId && !targetGroupId) {
+          // Moving from group to ungrouped
+          // Remove from source group
+          const updatedSourceGroupIds = getGroupColumnIds(sourceGroupId)
+            .filter(id => !selectedIds.includes(id));
+          
+          handleGroupColumnsChanged(sourceGroupId, updatedSourceGroupIds);
+          
+          // Create a copy of current columns
+          const newOrder = [...selectedColumns];
+          
+          // Remove dragged items from their current positions
+          const itemsToMove = newOrder.filter(item => selectedIds.includes(item.id));
+          const remainingItems = newOrder.filter(item => !selectedIds.includes(item.id));
+          
+          // Determine insert position
+          let insertIndex = target.index !== undefined 
+            ? target.index 
+            : target.id === 'empty-selected-panel' 
+              ? remainingItems.length 
+              : remainingItems.findIndex(item => item.id === target.id);
+              
+          if (insertIndex === -1) insertIndex = remainingItems.length;
+          
+          // Insert items at the target position
+          remainingItems.splice(insertIndex, 0, ...itemsToMove);
+          
+          onColumnSelectionChange({
+            items: remainingItems.map(node => node.column),
+            operationType: 'REORDER'
+          });
+        } else if (!sourceGroupId && targetGroupId) {
+          // Moving from ungrouped to group
+          // Add to target group
+          const updatedTargetGroupIds = [...getGroupColumnIds(targetGroupId)];
+          
+          // Insert at specific position
+          const insertIndex = target.index !== undefined 
+            ? target.index 
+            : updatedTargetGroupIds.length;
+          
+          updatedTargetGroupIds.splice(insertIndex, 0, ...selectedIds);
+          
+          handleGroupColumnsChanged(targetGroupId, updatedTargetGroupIds);
+        } else if (sourceGroupId && targetGroupId && sourceGroupId !== targetGroupId) {
+          // Moving between different groups
+          // Remove from source group
+          const updatedSourceGroupIds = getGroupColumnIds(sourceGroupId)
+            .filter(id => !selectedIds.includes(id));
+          
+          handleGroupColumnsChanged(sourceGroupId, updatedSourceGroupIds);
+          
+          // Add to target group
+          const updatedTargetGroupIds = [...getGroupColumnIds(targetGroupId)];
+          
+          // Insert at specific position
+          const insertIndex = target.index !== undefined 
+            ? target.index 
+            : updatedTargetGroupIds.length;
+          
+          updatedTargetGroupIds.splice(insertIndex, 0, ...selectedIds);
+          
+          handleGroupColumnsChanged(targetGroupId, updatedTargetGroupIds);
+        } else {
+          // Regular reordering in ungrouped area
+          // Create a copy of current columns
+          const newOrder = [...selectedColumns];
+          
+          // Remove dragged items from their current positions
+          const itemsToMove = newOrder.filter(item => selectedIds.includes(item.id));
+          const remainingItems = newOrder.filter(item => !selectedIds.includes(item.id));
+          
+          // Determine insert position
+          let insertIndex = target.index !== undefined 
+            ? target.index 
+            : target.id === 'empty-selected-panel' 
+              ? remainingItems.length 
+              : remainingItems.findIndex(item => item.id === target.id);
+              
+          if (insertIndex === -1) insertIndex = remainingItems.length;
+          
+          // Insert items at the target position
+          remainingItems.splice(insertIndex, 0, ...itemsToMove);
+          
+          onColumnSelectionChange({
+            items: remainingItems.map(node => node.column),
+            operationType: 'REORDER'
+          });
+        }
+      }
+    }
+
+    // Reset drag state
+    setDraggedItem(null);
+    setDropTarget(null);
+    dropPositionRef.current = null;
+  };
+
+  // Helper to get column IDs in a group
+  const getGroupColumnIds = (groupId: string): string[] => {
+    const group = selectedGroups.find(g => g.id === groupId);
+    return group ? [...group.children] : [];
+  };
+
+  // Handle dragging a group
+  const handleDragGroup = (groupId: string, target: { id: string, type: string, parentId?: string, index?: number }) => {
+    // Get columns in the dragged group
+    const groupColumnIds = getGroupColumnIds(groupId);
+    if (groupColumnIds.length === 0) return;
+    
+    if (target.parentId) {
+      // Dragging a group into another group (merge)
+      const targetGroupIds = getGroupColumnIds(target.parentId);
+      
+      // Insert at specific position
+      const insertIndex = target.index !== undefined 
+        ? target.index 
+        : targetGroupIds.length;
+      
+      const updatedTargetGroupIds = [...targetGroupIds];
+      updatedTargetGroupIds.splice(insertIndex, 0, ...groupColumnIds);
+      
+      // Update target group
+      handleGroupColumnsChanged(target.parentId, updatedTargetGroupIds);
+      
+      // Remove source group
+      handleRemoveGroup(groupId);
+    } else {
+      // Dragging a group to the ungrouped area
+      // Get the columns for this group
+      const groupColumns = selectedColumns.filter(col => groupColumnIds.includes(col.id));
+      
       // Create a copy of current columns
       const newOrder = [...selectedColumns];
       
-      // Remove dragged items from their current positions
-      const itemsToMove = newOrder.filter(item => selectedIds.includes(item.id));
-      const remainingItems = newOrder.filter(item => !selectedIds.includes(item.id));
+      // Remove group columns from their current positions
+      const remainingItems = newOrder.filter(item => !groupColumnIds.includes(item.id));
       
       // Determine insert position
       let insertIndex = target.index !== undefined 
@@ -256,18 +428,16 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
       if (insertIndex === -1) insertIndex = remainingItems.length;
       
       // Insert items at the target position
-      remainingItems.splice(insertIndex, 0, ...itemsToMove);
+      remainingItems.splice(insertIndex, 0, ...groupColumns);
       
       onColumnSelectionChange({
         items: remainingItems.map(node => node.column),
         operationType: 'REORDER'
       });
+      
+      // Remove the group
+      handleRemoveGroup(groupId);
     }
-
-    // Reset drag state
-    setDraggedItem(null);
-    setDropTarget(null);
-    dropPositionRef.current = null;
   };
 
   // Handle double-click to move between panels
@@ -379,6 +549,24 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
     );
   };
 
+  // Handle group columns changed (reordering or moving)
+  const handleGroupColumnsChanged = (groupId: string, newColumnIds: string[]) => {
+    setSelectedGroups(prev => 
+      prev.map(group => 
+        group.id === groupId
+          ? { ...group, children: newColumnIds }
+          : group
+      )
+    );
+    
+    // Get the group to notify the consumer
+    const group = selectedGroups.find(g => g.id === groupId);
+    if (group) {
+      // We use UPDATE to signal group contents changed
+      onColumnGroupChange(group.name, 'UPDATE', group.name);
+    }
+  };
+
   // Filter available columns based on search
   const filteredAvailableColumns = React.useMemo(() => {
     if (!availableSearchQuery) return availableColumns;
@@ -438,7 +626,7 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
             columns={filteredAvailableColumns}
             selectedIds={selectedAvailableIds}
             setSelectedIds={setSelectedAvailableIds}
-            onDragStart={(item) => handleDragStart(item, selectedAvailableIds)}
+            onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             dropTarget={dropTarget}
@@ -453,7 +641,7 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
             groups={selectedGroups}
             selectedIds={selectedSelectedIds}
             setSelectedIds={setSelectedSelectedIds}
-            onDragStart={(item) => handleDragStart(item, selectedSelectedIds)}
+            onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             dropTarget={dropTarget}
@@ -464,6 +652,7 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
             onUpdateGroup={handleUpdateGroup}
             onAddToGroup={handleAddToGroup}
             onRemoveFromGroup={handleRemoveFromGroup}
+            onGroupColumnsChanged={handleGroupColumnsChanged}
             searchQuery={selectedSearchQuery}
             setSearchQuery={setSelectedSearchQuery}
           />

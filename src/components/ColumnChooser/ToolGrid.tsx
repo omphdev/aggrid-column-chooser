@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { ColumnApi, GridApi, GridReadyEvent } from 'ag-grid-community';
+import { ColumnApi, GridApi, GridReadyEvent, ColDef, ColGroupDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { 
@@ -162,26 +162,63 @@ const ToolGrid: React.FC<ToolGridProps> = ({
     setAvailableTree(buildTree());
   }, [normalizedColumnDefs, selectedColumns]);
 
-  // Apply selected columns to the grid
+  // Apply selected columns to the grid with appropriate grouping
   useEffect(() => {
     if (apiRef.current.column) {
-      const visibleColumnDefs = selectedColumns.map(node => ({
+      // Create AG Grid column definitions with groups
+      const gridColDefs = createGridColumnDefs();
+      
+      // Update grid columns
+      apiRef.current.grid?.setColumnDefs(gridColDefs);
+    }
+  }, [selectedColumns, selectedGroups]);
+
+  // Create AG Grid column definitions with grouping
+  const createGridColumnDefs = (): (ColDef | ColGroupDef)[] => {
+    // First, get all ungrouped columns
+    const groupedColumnIds = selectedGroups.flatMap(g => g.children);
+    const ungroupedColumns = selectedColumns
+      .filter(col => !groupedColumnIds.includes(col.id))
+      .map(node => ({
         ...node.column,
         hide: false
       }));
-
-      // Combine visible columns with hidden columns (from available)
-      const allColDefs = [
-        ...visibleColumnDefs,
-        ...normalizedColumnDefs.filter(
-          col => !selectedColumns.find(selected => selected.id === col.id)
-        ).map(col => ({ ...col, hide: true }))
-      ];
-
-      // Update grid columns
-      apiRef.current.grid?.setColumnDefs(allColDefs);
-    }
-  }, [selectedColumns, normalizedColumnDefs]);
+    
+    // Create column group definitions
+    const groupDefs: ColGroupDef[] = selectedGroups.map(group => {
+      // Get columns for this group
+      const groupColumns = selectedColumns
+        .filter(col => group.children.includes(col.id))
+        .map(node => ({
+          ...node.column,
+          hide: false
+        }));
+      
+      // Ensure columns appear in the correct order in the group
+      const orderedColumns: ColDef[] = [];
+      group.children.forEach(childId => {
+        const column = groupColumns.find(col => (col.id === childId || col.field === childId));
+        if (column) {
+          orderedColumns.push(column);
+        }
+      });
+      
+      return {
+        headerName: group.name,
+        children: orderedColumns
+      };
+    });
+    
+    // Combine group definitions with ungrouped columns
+    const visibleColumnDefs = [...groupDefs, ...ungroupedColumns];
+    
+    // Add hidden columns (those in available)
+    const hiddenColumns = normalizedColumnDefs
+      .filter(col => !selectedColumns.find(selected => selected.id === col.id))
+      .map(col => ({ ...col, hide: true }));
+    
+    return [...visibleColumnDefs, ...hiddenColumns];
+  };
 
   // Handle grid ready event
   const onGridReady = (params: GridReadyEvent) => {
@@ -220,6 +257,14 @@ const ToolGrid: React.FC<ToolGridProps> = ({
     } else if (operationType === 'REMOVE') {
       const removeIds = items.map(col => col.id!);
       setSelectedColumns(prev => prev.filter(node => !removeIds.includes(node.id)));
+      
+      // Also remove these columns from any groups they might be in
+      setSelectedGroups(prev => 
+        prev.map(group => ({
+          ...group,
+          children: group.children.filter(id => !removeIds.includes(id))
+        }))
+      );
     } else if (operationType === 'REORDER') {
       // For reorder, we replace the entire selected columns array
       const newNodes = items.map(col => ({
@@ -282,10 +327,8 @@ const ToolGrid: React.FC<ToolGridProps> = ({
         <AgGridReact
           ref={gridRef}
           rowData={rowData}
-          columnDefs={normalizedColumnDefs.map(col => ({
-            ...col,
-            hide: !selectedColumns.some(selected => selected.id === col.id)
-          }))}
+          // Use grouped column definitions
+          columnDefs={createGridColumnDefs()}
           onGridReady={onGridReady}
           {...gridOptions}
         />
