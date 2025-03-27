@@ -1,31 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import Grid from './components/Grid';
-import { ColumnItem, ColumnGroup } from './types';
+import React, { useEffect } from 'react';
+import ColumnChooser from './components/ColumnChooser';
+import MainGrid from './components/MainGrid';
+import { initializeDragSilhouette, cleanupDragSilhouette } from './utils/dragUtils';
 import { generateMockColumnDefinitions, generateMockData } from './utils/mockData';
+import useDashboardState from './hooks/useDashboardState';
+import dashboardStateService from './services/dashboardStateService';
+import { ColumnGroup } from './types';
 import './App.css';
-
 // Import selection styles to ensure they're loaded
 import './components/TreeView/SelectionStyles.css';
 
-// Main App component as entry point for the application
+// Main App component demonstrating how a consumer would use this
 const App: React.FC = () => {
-  // State for columns, data, and selections
-  const [columnDefs, setColumnDefs] = useState<any[]>([]);
-  const [rowData, setRowData] = useState<any[]>([]);
-  const [selectedColumns, setSelectedColumns] = useState<ColumnItem[]>([]);
-  const [columnGroups, setColumnGroups] = useState<ColumnGroup[]>([]);
+  // Get the dashboard state via our custom hook
+  const [state, stateService] = useDashboardState();
   
-  // Initialize data on mount
+  // Initialize on mount
   useEffect(() => {
     // Get sample data
-    const initialColumnDefs = generateMockColumnDefinitions().map(col => ({
-      field: col.field,
-      headerName: col.groupPath[col.groupPath.length - 1],
-      sortable: true,
-      filter: true
-    }));
-    
-    const initialRowData = generateMockData();
+    const columnDefinitions = generateMockColumnDefinitions();
+    const mockData = generateMockData();
     
     // Create sample column groups
     const initialColumnGroups: ColumnGroup[] = [
@@ -41,42 +35,76 @@ const App: React.FC = () => {
       }
     ];
     
-    // Set state
-    setColumnDefs(initialColumnDefs);
-    setRowData(initialRowData);
-    setColumnGroups(initialColumnGroups);
+    // Initialize the dashboard state with data and column groups
+    dashboardStateService.initialize(columnDefinitions, mockData, initialColumnGroups);
+    
+    // Initialize drag and drop system
+    initializeDragSilhouette();
+    
+    console.log('Drag system initialized');
+    
+    // Force an update to apply initial available columns filtering
+    // This ensures items don't appear in both panels on startup
+    if (dashboardStateService.value.selectedColumnIds.length > 0) {
+      dashboardStateService.updateSelectedColumns(dashboardStateService.value.selectedColumnIds);
+    }
+    
+    // Add debugging listener
+    const handleDragEvents = (e: DragEvent) => {
+      console.log(`Drag event: ${e.type}`);
+    };
+    
+    document.addEventListener('dragstart', handleDragEvents);
+    document.addEventListener('dragover', handleDragEvents);
+    document.addEventListener('drop', handleDragEvents);
+    
+    // Clean up on unmount
+    return () => {
+      cleanupDragSilhouette();
+      document.removeEventListener('dragstart', handleDragEvents);
+      document.removeEventListener('dragover', handleDragEvents);
+      document.removeEventListener('drop', handleDragEvents);
+    };
   }, []);
   
   // Handle column selection changes
-  const handleSelectedColumnsChange = (columns: ColumnItem[]) => {
-    setSelectedColumns(columns);
-    console.log('Selected columns changed:', columns);
-    
-    // You could save selections to your backend/localStorage/etc. here
+  const handleSelectedColumnsChange = (columnIds: string[]) => {
+    console.log('Selected columns changed:', columnIds);
+    // Update the dashboard state, which will trigger UI updates
+    dashboardStateService.updateSelectedColumns(columnIds);
   };
   
   // Handle column group changes
-  const handleColumnGroupsChange = (groups: ColumnGroup[]) => {
-    setColumnGroups(groups);
-    console.log('Column groups changed:', groups);
-    
-    // You could save group configurations to your backend/localStorage/etc. here
+  const handleColumnGroupsChange = (columnGroups: ColumnGroup[]) => {
+    console.log('Column groups changed:', columnGroups);
+    // Update the dashboard state with new column groups
+    dashboardStateService.updateColumnGroups(columnGroups);
   };
   
   return (
     <div className="app-container">
-      <h3>Column Chooser Demo</h3>
-      
       <div className="app-layout">
-        <Grid
-          columnDefs={columnDefs}
-          rowData={rowData}
-          initialSelectedColumnIds={['column_1', 'column_2', 'column_3', 'column_11', 'column_12', 'column_13']}
-          initialColumnGroups={columnGroups}
-          onColumnChanged={handleSelectedColumnsChange}
-          onColumnGroupsChanged={handleColumnGroupsChange}
-          height="calc(100% - 40px)"
-        />
+        {/* Main Grid */}
+        <div className="main-grid-container">
+          <h3>Data Grid</h3>
+          <MainGrid 
+            columnDefs={state.gridColumnDefs}
+            rowData={state.gridData}
+            height="calc(100% - 40px)" 
+          />
+        </div>
+        
+        {/* Column Chooser */}
+        <div className="column-chooser-container">
+          <ColumnChooser 
+            availableColumns={state.availableColumns}
+            selectedColumns={state.selectedColumns}
+            isFlatView={state.isFlatView}
+            columnGroups={state.columnGroups}
+            onSelectedColumnsChange={handleSelectedColumnsChange}
+            onColumnGroupsChange={handleColumnGroupsChange}
+          />
+        </div>
       </div>
     </div>
   );
