@@ -1,0 +1,495 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  TreeNode, 
+  SelectedNode, 
+  SelectedGroup, 
+  DragItem,
+  ExtendedColDef,
+  ColumnChangeEvent
+} from './types';
+import AvailableColumnsPanel from './AvailableColumnsPanel';
+import SelectedColumnsPanel from './SelectedColumnsPanel';
+import './ColumnChooser.css';
+
+interface ColumnChooserProps {
+  availableColumns: TreeNode[];
+  selectedColumns: SelectedNode[];
+  selectedGroups: SelectedGroup[];
+  onColumnSelectionChange: (event: ColumnChangeEvent) => void;
+  onColumnGroupChange: (headerName: string, action: 'REMOVE' | 'UPDATE', replaceName?: string) => void;
+  setSelectedGroups: React.Dispatch<React.SetStateAction<SelectedGroup[]>>;
+}
+
+const ColumnChooser: React.FC<ColumnChooserProps> = ({
+  availableColumns,
+  selectedColumns,
+  selectedGroups,
+  onColumnSelectionChange,
+  onColumnGroupChange,
+  setSelectedGroups
+}) => {
+  // State for selection
+  const [selectedAvailableIds, setSelectedAvailableIds] = useState<string[]>([]);
+  const [selectedSelectedIds, setSelectedSelectedIds] = useState<string[]>([]);
+  
+  // State for drag and drop
+  const [draggedItem, setDraggedItem] = useState<DragItem | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  
+  // State for search
+  const [availableSearchQuery, setAvailableSearchQuery] = useState('');
+  const [selectedSearchQuery, setSelectedSearchQuery] = useState('');
+  
+  // Refs for panels
+  const availablePanelRef = useRef<HTMLDivElement>(null);
+  const selectedPanelRef = useRef<HTMLDivElement>(null);
+  
+  // Drop position ref
+  const dropPositionRef = useRef<number | null>(null);
+
+  // Clear selections when components re-render with new data
+  useEffect(() => {
+    setSelectedAvailableIds([]);
+    setSelectedSelectedIds([]);
+  }, [availableColumns, selectedColumns]);
+
+  // Handle move up/down in selected panel
+  const handleMoveUpDown = (direction: 'up' | 'down') => {
+    if (selectedSelectedIds.length === 0) return;
+
+    // Create a new array with the current order
+    const newOrder = [...selectedColumns];
+    const indices = selectedSelectedIds.map(id => 
+      newOrder.findIndex(col => col.id === id)
+    ).sort(direction === 'up' ? (a, b) => a - b : (a, b) => b - a);
+
+    // Move each selected item
+    indices.forEach(idx => {
+      const newIdx = direction === 'up' 
+        ? Math.max(0, idx - 1) 
+        : Math.min(newOrder.length - 1, idx + 1);
+      
+      if (idx !== newIdx) {
+        const [removed] = newOrder.splice(idx, 1);
+        newOrder.splice(newIdx, 0, removed);
+      }
+    });
+
+    // Send the reorder event
+    onColumnSelectionChange({
+      items: newOrder.map(node => node.column),
+      operationType: 'REORDER'
+    });
+  };
+
+  // Handle select all available columns
+  const handleSelectAllAvailable = () => {
+    const allIds: string[] = [];
+    
+    const collectIds = (nodes: TreeNode[]) => {
+      nodes.forEach(node => {
+        if (!node.isGroup) {
+          allIds.push(node.id);
+        }
+        if (node.children.length > 0) {
+          collectIds(node.children);
+        }
+      });
+    };
+
+    collectIds(availableColumns);
+    setSelectedAvailableIds(allIds);
+  };
+
+  // Handle select all selected columns
+  const handleSelectAllSelected = () => {
+    setSelectedSelectedIds(selectedColumns.map(node => node.id));
+  };
+
+  // Handle clear selection
+  const handleClearAvailableSelection = () => {
+    setSelectedAvailableIds([]);
+  };
+
+  const handleClearSelectedSelection = () => {
+    setSelectedSelectedIds([]);
+  };
+
+  // Handle clear all selected columns (move all to available)
+  const handleClearAllSelected = () => {
+    onColumnSelectionChange({
+      items: selectedColumns.map(node => node.column),
+      operationType: 'REMOVE'
+    });
+  };
+
+  // Handle drag start - modified to handle multiple selections
+  const handleDragStart = (item: DragItem, selectedIds: string[]) => {
+    setDraggedItem({
+      ...item,
+      selectedIds: selectedIds.includes(item.id) ? selectedIds : [item.id]
+    });
+  };
+
+  // Handle drag over
+  const handleDragOver = (event: React.DragEvent, targetId: string, position?: number) => {
+    event.preventDefault();
+    setDropTarget(targetId);
+    if (position !== undefined) {
+      dropPositionRef.current = position;
+    }
+  };
+
+  // Helper to find all leaf nodes in a tree
+  const findAllLeafNodes = (nodes: TreeNode[]): ExtendedColDef[] => {
+    const leafNodes: ExtendedColDef[] = [];
+    
+    const traverse = (nodeList: TreeNode[]) => {
+      nodeList.forEach(node => {
+        if (!node.isGroup && node.column) {
+          leafNodes.push(node.column);
+        } else if (node.children.length > 0) {
+          traverse(node.children);
+        }
+      });
+    };
+    
+    traverse(nodes);
+    return leafNodes;
+  };
+
+  // Handle group drag - find all leaf nodes in the group
+  const findGroupLeafNodes = (groupId: string, nodes: TreeNode[]): ExtendedColDef[] => {
+    for (const node of nodes) {
+      if (node.id === groupId && node.isGroup) {
+        return findAllLeafNodes(node.children);
+      }
+      if (node.children.length > 0) {
+        const found = findGroupLeafNodes(groupId, node.children);
+        if (found.length > 0) return found;
+      }
+    }
+    return [];
+  };
+
+  // Handle drop
+  const handleDrop = (target: { id: string, type: 'available' | 'selected', parentId?: string, index?: number }) => {
+    if (!draggedItem) return;
+
+    // Handle drops between panels
+    if (draggedItem.source !== target.type) {
+      if (draggedItem.source === 'available' && target.type === 'selected') {
+        // Moving from available to selected
+        let columnsToMove: ExtendedColDef[] = [];
+        
+        // Check if dragging a group
+        if (draggedItem.type === 'group') {
+          // Find all leaf nodes in the group
+          columnsToMove = findGroupLeafNodes(draggedItem.id, availableColumns);
+        } else {
+          // Handle regular column or multiple selected columns
+          const selectedIds = draggedItem.selectedIds || [draggedItem.id];
+          
+          const findColumnsInTree = (nodes: TreeNode[], ids: string[]) => {
+            nodes.forEach(node => {
+              if (!node.isGroup && ids.includes(node.id) && node.column) {
+                columnsToMove.push(node.column);
+              }
+              if (node.children.length > 0) {
+                findColumnsInTree(node.children, ids);
+              }
+            });
+          };
+
+          findColumnsInTree(availableColumns, selectedIds);
+        }
+
+        if (columnsToMove.length > 0) {
+          // Determine insert position - use target index if provided
+          const insertIndex = target.index !== undefined ? target.index : selectedColumns.length;
+          
+          onColumnSelectionChange({
+            items: columnsToMove,
+            operationType: 'ADD',
+            index: insertIndex
+          });
+        }
+      } else if (draggedItem.source === 'selected' && target.type === 'available') {
+        // Moving from selected to available
+        const selectedIds = draggedItem.selectedIds || [draggedItem.id];
+        const columnsToMove = selectedColumns
+          .filter(col => selectedIds.includes(col.id))
+          .map(node => node.column);
+        
+        if (columnsToMove.length > 0) {
+          onColumnSelectionChange({
+            items: columnsToMove,
+            operationType: 'REMOVE'
+          });
+        }
+      }
+    } else if (draggedItem.source === 'selected' && target.type === 'selected') {
+      // Reordering within selected panel
+      const selectedIds = draggedItem.selectedIds || [draggedItem.id];
+      
+      // If there's only one item and we're dropping it in its original position, do nothing
+      if (selectedIds.length === 1 && target.id === draggedItem.id) {
+        setDraggedItem(null);
+        setDropTarget(null);
+        return;
+      }
+      
+      // Create a copy of current columns
+      const newOrder = [...selectedColumns];
+      
+      // Remove dragged items from their current positions
+      const itemsToMove = newOrder.filter(item => selectedIds.includes(item.id));
+      const remainingItems = newOrder.filter(item => !selectedIds.includes(item.id));
+      
+      // Determine insert position
+      let insertIndex = target.index !== undefined 
+        ? target.index 
+        : target.id === 'empty-selected-panel' 
+          ? remainingItems.length 
+          : remainingItems.findIndex(item => item.id === target.id);
+          
+      if (insertIndex === -1) insertIndex = remainingItems.length;
+      
+      // Insert items at the target position
+      remainingItems.splice(insertIndex, 0, ...itemsToMove);
+      
+      onColumnSelectionChange({
+        items: remainingItems.map(node => node.column),
+        operationType: 'REORDER'
+      });
+    }
+
+    // Reset drag state
+    setDraggedItem(null);
+    setDropTarget(null);
+    dropPositionRef.current = null;
+  };
+
+  // Handle double-click to move between panels
+  const handleDoubleClick = (id: string, source: 'available' | 'selected', isGroup?: boolean) => {
+    if (source === 'available') {
+      // Move from available to selected
+      if (isGroup) {
+        // Double-click on group - move all children
+        const columnsToMove = findGroupLeafNodes(id, availableColumns);
+        
+        if (columnsToMove.length > 0) {
+          onColumnSelectionChange({
+            items: columnsToMove,
+            operationType: 'ADD'
+          });
+        }
+      } else {
+        // Double-click on column
+        const columnsToMove: ExtendedColDef[] = [];
+        
+        const findColumnsInTree = (nodes: TreeNode[], clickedId: string) => {
+          for (const node of nodes) {
+            if (!node.isGroup && node.id === clickedId && node.column) {
+              columnsToMove.push(node.column);
+              return true;
+            }
+            if (node.children.length > 0 && findColumnsInTree(node.children, clickedId)) {
+              return true;
+            }
+          }
+          return false;
+        };
+
+        findColumnsInTree(availableColumns, id);
+
+        if (columnsToMove.length > 0) {
+          onColumnSelectionChange({
+            items: columnsToMove,
+            operationType: 'ADD'
+          });
+        }
+      }
+    } else {
+      // Move from selected to available
+      const column = selectedColumns.find(col => col.id === id)?.column;
+      
+      if (column) {
+        onColumnSelectionChange({
+          items: [column],
+          operationType: 'REMOVE'
+        });
+      }
+    }
+  };
+
+  // Handle creating a new group
+  const handleCreateGroup = (name: string) => {
+    if (selectedSelectedIds.length === 0) return;
+
+    const newGroup: SelectedGroup = {
+      id: `group-${Math.random().toString(36).substring(2, 9)}`,
+      name,
+      children: selectedSelectedIds
+    };
+
+    setSelectedGroups(prev => [...prev, newGroup]);
+    setSelectedSelectedIds([]);
+  };
+
+  // Handle removing a group
+  const handleRemoveGroup = (groupId: string) => {
+    const group = selectedGroups.find(g => g.id === groupId);
+    if (!group) return;
+
+    onColumnGroupChange(group.name, 'REMOVE');
+  };
+
+  // Handle updating a group
+  const handleUpdateGroup = (groupId: string, newName: string) => {
+    const group = selectedGroups.find(g => g.id === groupId);
+    if (!group) return;
+
+    onColumnGroupChange(group.name, 'UPDATE', newName);
+  };
+
+  // Handle adding columns to a group
+  const handleAddToGroup = (groupId: string) => {
+    if (selectedSelectedIds.length === 0) return;
+
+    setSelectedGroups(prev => 
+      prev.map(group => 
+        group.id === groupId
+          ? { ...group, children: [...new Set([...group.children, ...selectedSelectedIds])] }
+          : group
+      )
+    );
+
+    setSelectedSelectedIds([]);
+  };
+
+  // Handle removing columns from a group
+  const handleRemoveFromGroup = (groupId: string, columnIds: string[]) => {
+    setSelectedGroups(prev => 
+      prev.map(group => 
+        group.id === groupId
+          ? { ...group, children: group.children.filter(id => !columnIds.includes(id)) }
+          : group
+      )
+    );
+  };
+
+  // Filter available columns based on search
+  const filteredAvailableColumns = React.useMemo(() => {
+    if (!availableSearchQuery) return availableColumns;
+
+    const searchLower = availableSearchQuery.toLowerCase();
+    
+    const filterNodes = (nodes: TreeNode[]): TreeNode[] => {
+      return nodes
+        .map(node => {
+          if (node.isGroup) {
+            const filteredChildren = filterNodes(node.children);
+            if (filteredChildren.length > 0) {
+              return {
+                ...node,
+                children: filteredChildren,
+                isExpanded: true // Auto-expand groups with matching children
+              };
+            }
+            // If group name matches, include the whole group
+            if (node.name.toLowerCase().includes(searchLower)) {
+              return { ...node, isExpanded: true };
+            }
+            return null;
+          } else {
+            // Leaf node - check if name matches
+            if (node.name.toLowerCase().includes(searchLower)) {
+              return node;
+            }
+            return null;
+          }
+        })
+        .filter((node): node is TreeNode => node !== null);
+    };
+
+    return filterNodes(availableColumns);
+  }, [availableColumns, availableSearchQuery]);
+
+  // Filter selected columns based on search
+  const filteredSelectedColumns = React.useMemo(() => {
+    if (!selectedSearchQuery) return selectedColumns;
+
+    const searchLower = selectedSearchQuery.toLowerCase();
+    return selectedColumns.filter(col => 
+      col.name.toLowerCase().includes(searchLower)
+    );
+  }, [selectedColumns, selectedSearchQuery]);
+
+  return (
+    <div className="column-chooser">
+      <div className="column-chooser-header">
+        <h3>Column Chooser</h3>
+      </div>
+      
+      <div className="column-chooser-content">
+        <div className="column-panels">
+          <AvailableColumnsPanel
+            columns={filteredAvailableColumns}
+            selectedIds={selectedAvailableIds}
+            setSelectedIds={setSelectedAvailableIds}
+            onDragStart={(item) => handleDragStart(item, selectedAvailableIds)}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            dropTarget={dropTarget}
+            draggedItem={draggedItem}
+            onDoubleClick={handleDoubleClick}
+            searchQuery={availableSearchQuery}
+            setSearchQuery={setAvailableSearchQuery}
+          />
+          
+          <SelectedColumnsPanel
+            columns={filteredSelectedColumns}
+            groups={selectedGroups}
+            selectedIds={selectedSelectedIds}
+            setSelectedIds={setSelectedSelectedIds}
+            onDragStart={(item) => handleDragStart(item, selectedSelectedIds)}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            dropTarget={dropTarget}
+            draggedItem={draggedItem}
+            onDoubleClick={handleDoubleClick}
+            onCreateGroup={handleCreateGroup}
+            onRemoveGroup={handleRemoveGroup}
+            onUpdateGroup={handleUpdateGroup}
+            onAddToGroup={handleAddToGroup}
+            onRemoveFromGroup={handleRemoveFromGroup}
+            searchQuery={selectedSearchQuery}
+            setSearchQuery={setSelectedSearchQuery}
+          />
+        </div>
+        
+        <div className="column-chooser-actions">
+          <div className="available-actions">
+            <button onClick={handleSelectAllAvailable}>Select All Available</button>
+            <button onClick={handleClearAvailableSelection} disabled={selectedAvailableIds.length === 0}>
+              Clear Selection
+            </button>
+          </div>
+          
+          <div className="selected-actions">
+            <button onClick={handleSelectAllSelected}>Select All Selected</button>
+            <button onClick={handleClearSelectedSelection} disabled={selectedSelectedIds.length === 0}>
+              Clear Selection
+            </button>
+            <button onClick={handleClearAllSelected} disabled={selectedColumns.length === 0}>
+              Clear All
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ColumnChooser;
