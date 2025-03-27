@@ -1,8 +1,25 @@
-// src/components/TreeView/TreeItem.jsx
 import React, { useRef } from 'react';
-import { cx } from '../../utils/styleUtils';
+import { ColumnItem } from '../../types';
+import { countLeafNodes } from '../../utils/columnUtils';
 
-const TreeItem = ({
+interface TreeItemProps {
+  item: ColumnItem;
+  depth: number;
+  index: number;
+  isSelected: boolean;
+  onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
+  onExpand: (id: string) => void;
+  onSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
+  onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void;
+  onDragLeave?: () => void;
+  source: 'available' | 'selected';
+  onDoubleClick?: (item: ColumnItem) => void;
+  countChildren?: boolean;
+  enableReordering?: boolean;
+  selectedIds?: string[]; // Add selectedIds prop to check children
+}
+
+const TreeItem: React.FC<TreeItemProps> = ({
   item,
   depth,
   index,
@@ -16,19 +33,18 @@ const TreeItem = ({
   onDoubleClick,
   countChildren = true,
   enableReordering = false,
-  selectedIds = [],
-  classes
+  selectedIds = []
 }) => {
-  const itemRef = useRef(null);
+  const itemRef = useRef<HTMLDivElement>(null);
   const hasChildren = item.children && item.children.length > 0;
   
   // Handle click for selection
-  const handleClick = (e) => {
+  const handleClick = (e: React.MouseEvent) => {
     onSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
   };
 
   // Handle double click
-  const handleDoubleClick = (e) => {
+  const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onDoubleClick && !hasChildren) {
       onDoubleClick(item);
@@ -39,13 +55,13 @@ const TreeItem = ({
   };
   
   // Handle drag start - simplified to just pass to parent
-  const handleItemDragStart = (e) => {
+  const handleItemDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
     onDragStart(e, item);
   };
   
   // Handle dragover
-  const handleItemDragOver = (e) => {
+  const handleItemDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
@@ -56,41 +72,23 @@ const TreeItem = ({
   
   // Count leaf nodes (only actual columns, not groups)
   const childCount = countChildren && hasChildren 
-    ? countLeafNodes(item.children)
+    ? countLeafNodes(item.children!)
     : 0;
   
-  // Helper function to count leaf nodes
-  function countLeafNodes(items) {
-    let count = 0;
-    const countLeaves = (itemList) => {
-      for (const item of itemList) {
-        if (item.field && (!item.children || item.children.length === 0)) {
-          count++;
-        }
-        if (item.children && item.children.length > 0) {
-          countLeaves(item.children);
-        }
-      }
-    };
-    countLeaves(items);
-    return count;
-  }
-  
-  // Generate class names based on item state
-  const itemClass = cx(
+  // Determine CSS classes
+  const itemClasses = [
     'tree-item',
-    isSelected ? classes.treeItemSelected : '',
-    hasChildren ? classes.treeGroupItem : '',
-    hasChildren && isSelected ? classes.treeGroupSelected : '',
+    isSelected ? 'selected' : '',
+    hasChildren ? 'has-children' : '',
     enableReordering ? 'reorderable' : ''
-  );
+  ].filter(Boolean).join(' ');
   
   return (
     <div className="tree-item-container">
       {/* Item header */}
       <div 
         ref={itemRef}
-        className={itemClass}
+        className={itemClasses}
         draggable={true}
         onDragStart={handleItemDragStart}
         onDragOver={handleItemDragOver}
@@ -101,19 +99,19 @@ const TreeItem = ({
         data-item-id={item.id}
         data-item-index={index}
         data-source={source}
-        data-selected={isSelected ? 'true' : 'false'}
+        data-selected={isSelected ? 'true' : 'false'} // Add data attribute for selection state
       >
         {/* Reorder handle if reordering is enabled */}
         {enableReordering && (
-          <div className={classes.reorderHandle} title="Drag to reorder">
-            <span className={classes.dragIcon}>⋮⋮</span>
+          <div className="reorder-handle" title="Drag to reorder">
+            <span className="drag-icon">⋮⋮</span>
           </div>
         )}
         
         {/* Expand/collapse button for groups */}
         {hasChildren && (
           <button 
-            className={classes.expandButton}
+            className="expand-button"
             onClick={(e) => {
               e.stopPropagation();
               onExpand(item.id);
@@ -124,10 +122,10 @@ const TreeItem = ({
         )}
         
         {/* Item name with child count if applicable */}
-        <span className={classes.itemName}>
+        <span className="item-name">
           {item.name}
           {hasChildren && countChildren && childCount > 0 && (
-            <span className={classes.groupCount}>({childCount})</span>
+            <span className="group-count">({childCount})</span>
           )}
         </span>
       </div>
@@ -135,13 +133,13 @@ const TreeItem = ({
       {/* Children */}
       {hasChildren && item.expanded && (
         <div className="tree-children">
-          {item.children.map((child, childIndex) => (
+          {item.children!.map((child, childIndex) => (
             <TreeItem 
               key={child.id}
               item={child}
               depth={depth + 1}
               index={childIndex}
-              isSelected={selectedIds.includes(child.id)}
+              isSelected={selectedIds.includes(child.id)} // Check each child individually
               onDragStart={onDragStart}
               onExpand={onExpand}
               onSelect={onSelect}
@@ -151,8 +149,7 @@ const TreeItem = ({
               onDoubleClick={onDoubleClick}
               countChildren={countChildren}
               enableReordering={enableReordering}
-              selectedIds={selectedIds}
-              classes={classes}
+              selectedIds={selectedIds} // Pass selectedIds to children
             />
           ))}
         </div>

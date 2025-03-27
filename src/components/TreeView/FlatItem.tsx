@@ -1,8 +1,26 @@
-// src/components/TreeView/FlatItem.jsx
 import React, { useRef, useState } from 'react';
-import { cx } from '../../utils/styleUtils';
+import { ColumnItem } from '../../types';
 
-const FlatItem = ({
+interface FlatItemProps {
+  item: ColumnItem;
+  index: number;
+  flatIndex?: number;
+  isSelected: boolean;
+  onDragStart: (e: React.DragEvent, item: ColumnItem) => void;
+  onSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
+  onDragOver?: (e: React.DragEvent, element: HTMLElement | null, itemId: string) => void;
+  onDragLeave?: () => void;
+  groupName?: string;
+  showGroupLabels?: boolean;
+  source: 'available' | 'selected';
+  onDoubleClick?: (item: ColumnItem) => void;
+  enableReordering?: boolean;
+  onRemoveFromGroup?: (columnIds: string[]) => void;
+  canDragToGroup?: boolean; // New prop to enable drag-to-group
+  groupId?: string; // The group this item belongs to, if any
+}
+
+const FlatItem: React.FC<FlatItemProps> = ({
   item,
   index,
   flatIndex,
@@ -18,20 +36,18 @@ const FlatItem = ({
   enableReordering = false,
   onRemoveFromGroup,
   canDragToGroup = true,
-  groupId,
-  classes
+  groupId
 }) => {
-  const itemRef = useRef(null);
+  const itemRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   
   // Handle click for selection
-  const handleClick = (e) => {
+  const handleClick = (e: React.MouseEvent) => {
     onSelect(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
   };
   
   // Handle double click to move item
-  const handleDoubleClick = (e) => {
+  const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onDoubleClick) {
       onDoubleClick(item);
@@ -39,7 +55,7 @@ const FlatItem = ({
   };
   
   // Handle drag start - enhanced to include group info
-  const handleItemDragStart = (e) => {
+  const handleItemDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
     
     // Set dragging state
@@ -50,8 +66,8 @@ const FlatItem = ({
       ids: [item.id],
       source,
       itemName: item.name,
-      sourceGroupId: groupId,
-      inGroup: !!groupId
+      sourceGroupId: groupId, // Include source group if applicable
+      inGroup: !!groupId // Explicitly indicate if it's in a group
     };
     
     console.log('Starting drag with data:', dragData);
@@ -63,7 +79,7 @@ const FlatItem = ({
     // Call parent drag start handler
     onDragStart(e, {
       ...item,
-      parentGroupId: groupId
+      parentGroupId: groupId // Add group context to the item
     });
     
     // Clean up on drag end
@@ -76,13 +92,13 @@ const FlatItem = ({
   };
   
   // Handle dragover
-  const handleItemDragOver = (e) => {
+  const handleItemDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (onDragOver && itemRef.current) {
       // Add group context to the dragover event
-      const enhancedEvent = e;
+      const enhancedEvent = e as any;
       enhancedEvent.targetGroupId = groupId;
       
       onDragOver(enhancedEvent, itemRef.current, item.id);
@@ -90,28 +106,23 @@ const FlatItem = ({
   };
   
   // Handle remove from group
-  const handleRemoveFromGroup = (e) => {
+  const handleRemoveFromGroup = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onRemoveFromGroup) {
       onRemoveFromGroup([item.id]);
     }
   };
   
-  // Handle mouse enter/leave for hover effects
-  const handleMouseEnter = () => setIsHovered(true);
-  const handleMouseLeave = () => setIsHovered(false);
-  
-  // Generate class names based on state
-  const itemClasses = cx(
-    classes.flatItem,
-    isSelected ? classes.flatItemSelected : '',
-    enableReordering ? classes.reorderable : '',
-    groupName ? classes.flatItemGrouped : '',
-    isDragging ? classes.flatItemDragging : '',
-    canDragToGroup ? classes.flatItemDragToGroup : '',
-    groupId ? 'in-group' : '',
-    isSelected && groupName ? classes.flatItemGroupedSelected : ''
-  );
+  // Determine CSS classes
+  const itemClasses = [
+    'flat-item',
+    isSelected ? 'selected' : '',
+    enableReordering ? 'reorderable' : '',
+    groupName ? 'grouped-item' : '',
+    isDragging ? 'dragging' : '',
+    canDragToGroup ? 'can-drag-to-group' : '',
+    groupId ? 'in-group' : ''
+  ].filter(Boolean).join(' ');
   
   return (
     <div 
@@ -123,8 +134,6 @@ const FlatItem = ({
       onDragLeave={onDragLeave}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       data-item-id={item.id}
       data-item-index={index}
       data-flat-index={flatIndex !== undefined ? flatIndex : index}
@@ -135,29 +144,25 @@ const FlatItem = ({
     >
       {/* Reorder handle if reordering is enabled */}
       {enableReordering && (
-        <div className={classes.reorderHandle} title="Drag to reorder">
-          <span className={classes.dragIcon}>⋮⋮</span>
+        <div className="reorder-handle" title="Drag to reorder">
+          <span className="drag-icon">⋮⋮</span>
         </div>
       )}
       
       {/* Show group label if enabled */}
       {showGroupLabels && groupName && (
-        <div className={classes.groupLabel}>{groupName}</div>
+        <div className="group-label">{groupName}</div>
       )}
       
       {/* Item name */}
-      <span className={classes.itemName}>{item.name}</span>
+      <span className="item-name">{item.name}</span>
       
       {/* Remove from group button if applicable */}
       {onRemoveFromGroup && (
         <button
-          className={cx(
-            classes.removeFromGroupBtn,
-            isHovered ? classes.removeButtonVisible : ''
-          )}
+          className="remove-from-group-btn"
           onClick={handleRemoveFromGroup}
           title={`Remove from ${groupName || 'group'}`}
-          onMouseEnter={() => setIsHovered(true)}
         >
           ✕
         </button>

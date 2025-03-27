@@ -1,9 +1,36 @@
-// src/components/ColumnChooser/SelectedColumns.jsx
 import React, { useState } from 'react';
+import { ColumnItem, ColumnGroup } from '../../types';
 import TreeView from '../TreeView';
-import { cx } from '../../utils/styleUtils';
+import './SelectedColumns.css';
 
-const SelectedColumns = ({
+interface SelectedColumnsProps {
+  columns: ColumnItem[];
+  selectedIds: string[];
+  leafCount: number;
+  toggleSelect: (id: string, isMultiSelect: boolean, isRangeSelect: boolean) => void;
+  selectAll: () => void;
+  clearSelection: () => void;
+  getSelectedCount: () => number;
+  moveItemsToAvailable: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
+  reorderItems: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
+  moveSelectedUp: () => void;
+  moveSelectedDown: () => void;
+  clearSelected: () => void;
+  onDoubleClick: (id: string) => void;
+  moveItemsToSelected?: (ids: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
+  title?: string;
+  showGroupLabels?: boolean;
+  columnGroups: ColumnGroup[];
+  onColumnGroupsChange: (columnGroups: ColumnGroup[]) => void;
+  onAddToGroup: (columnIds: string[], groupId: string) => void;
+  onRemoveFromGroup: (columnIds: string[], groupId: string) => void;
+  onCreateGroup: (name: string, columnIds: string[]) => void;
+  onDeleteGroup: (groupId: string) => void;
+  onRenameGroup: (groupId: string, newName: string) => void;
+  onReorderGroups: (groupIds: string[], dropPosition: { targetId?: string, insertBefore: boolean }) => void;
+}
+
+const SelectedColumns: React.FC<SelectedColumnsProps> = ({
   columns,
   selectedIds,
   leafCount,
@@ -27,29 +54,28 @@ const SelectedColumns = ({
   onCreateGroup,
   onDeleteGroup,
   onRenameGroup,
-  onReorderGroups,
-  classes
+  onReorderGroups
 }) => {
   // State for managing the group menu
   const [showGroupMenu, setShowGroupMenu] = useState(false);
   const [groupMenuPosition, setGroupMenuPosition] = useState({ x: 0, y: 0 });
-  const [selectedForGrouping, setSelectedForGrouping] = useState([]);
+  const [selectedForGrouping, setSelectedForGrouping] = useState<string[]>([]);
   const [showCreateGroupDialog, setShowCreateGroupDialog] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
-  const [editingGroupId, setEditingGroupId] = useState(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupName, setEditingGroupName] = useState('');
   
   // State for drag and drop targets
-  const [groupDragTarget, setGroupDragTarget] = useState(null);
-  const [itemDragTarget, setItemDragTarget] = useState(null);
+  const [groupDragTarget, setGroupDragTarget] = useState<string | null>(null);
+  const [itemDragTarget, setItemDragTarget] = useState<string | null>(null);
   
   // Handle drag start - TreeView will handle the details
-  const handleDragStart = (e, item) => {
+  const handleDragStart = (e: React.DragEvent, item: ColumnItem) => {
     console.log('Drag start in SelectedColumns for item:', item.id);
   };
   
   // Handle group drag start
-  const handleGroupDragStart = (e, group) => {
+  const handleGroupDragStart = (e: React.DragEvent, group: ColumnGroup) => {
     console.log('Drag start for group:', group.id);
     
     // Set the drag data for the group
@@ -62,7 +88,7 @@ const SelectedColumns = ({
   };
   
   // Handle drop - process drops from both panels and for groups
-  const handleDrop = (e) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     
     try {
@@ -77,7 +103,7 @@ const SelectedColumns = ({
       console.log('Drop in selected columns:', data);
       
       // Get drop position from the event
-      const positionedEvent = e;
+      const positionedEvent = e as any;
       const dropPosition = positionedEvent.dropPosition || { insertBefore: true };
       
       if (data.type === 'group' && data.source === 'selected') {
@@ -114,7 +140,7 @@ const SelectedColumns = ({
   };
   
   // Handle drop on a group
-  const handleDropOnGroup = (e, groupId) => {
+  const handleDropOnGroup = (e: React.DragEvent, groupId: string) => {
     e.preventDefault();
     
     try {
@@ -152,12 +178,12 @@ const SelectedColumns = ({
   };
   
   // Handle double-click on an item
-  const handleDoubleClick = (item) => {
+  const handleDoubleClick = (item: ColumnItem) => {
     onDoubleClick(item.id);
   };
   
   // Handle right-click on selected items (for group operations)
-  const handleContextMenu = (e, columnIds) => {
+  const handleContextMenu = (e: React.MouseEvent, columnIds?: string[]) => {
     e.preventDefault();
     
     // If we have selected items or specific items passed in
@@ -184,18 +210,18 @@ const SelectedColumns = ({
   };
   
   // Add selected columns to an existing group
-  const handleAddToGroup = (groupId) => {
+  const handleAddToGroup = (groupId: string) => {
     onAddToGroup(selectedForGrouping, groupId);
     setShowGroupMenu(false);
   };
   
   // Remove columns from a group
-  const handleRemoveFromGroup = (columnIds, groupId) => {
+  const handleRemoveFromGroup = (columnIds: string[], groupId: string) => {
     onRemoveFromGroup(columnIds, groupId);
   };
   
   // Start editing a group name
-  const handleStartEditGroup = (groupId, currentName) => {
+  const handleStartEditGroup = (groupId: string, currentName: string) => {
     setEditingGroupId(groupId);
     setEditingGroupName(currentName);
   };
@@ -216,19 +242,19 @@ const SelectedColumns = ({
   };
   
   // Delete a group
-  const handleDeleteGroup = (groupId) => {
+  const handleDeleteGroup = (groupId: string) => {
     onDeleteGroup(groupId);
   };
   
   // Prepare data for display with groups
   // Convert flat columns + groups into a structure for display
-  const prepareGroupedColumnsForDisplay = () => {
+  const prepareGroupedColumnsForDisplay = (): ColumnItem[] => {
     // Create a map for quick column lookup
-    const columnMap = new Map();
+    const columnMap = new Map<string, ColumnItem>();
     columns.forEach(col => columnMap.set(col.id, col));
     
     // Create a map to track which columns are in groups
-    const columnToGroupMap = new Map();
+    const columnToGroupMap = new Map<string, string>();
     columnGroups.forEach(group => {
       group.columnIds.forEach(colId => {
         columnToGroupMap.set(colId, group.id);
@@ -236,12 +262,12 @@ const SelectedColumns = ({
     });
     
     // Create a map of group ID to group for quick lookup
-    const groupMap = new Map();
+    const groupMap = new Map<string, ColumnGroup>();
     columnGroups.forEach(group => groupMap.set(group.id, group));
     
     // Process columns in their original order
-    const result = [];
-    const processedGroups = new Set();
+    const result: ColumnItem[] = [];
+    const processedGroups = new Set<string>();
     
     columns.forEach(col => {
       const groupId = columnToGroupMap.get(col.id);
@@ -250,13 +276,13 @@ const SelectedColumns = ({
         // This column belongs to a group
         if (!processedGroups.has(groupId)) {
           // First time seeing this group, create the group definition
-          const group = groupMap.get(groupId);
+          const group = groupMap.get(groupId)!;
           const groupChildren = group.columnIds
             .filter(id => columnMap.has(id))
-            .map(id => columnMap.get(id));
+            .map(id => columnMap.get(id)!);
           
           // Create a parent item for the group
-          const groupItem = {
+          const groupItem: ColumnItem = {
             id: `group_${groupId}`,
             name: group.name,
             field: '', // Groups don't have fields
@@ -283,35 +309,25 @@ const SelectedColumns = ({
   
   // Custom header with action buttons
   const renderCustomHeader = () => (
-    <div className={classes.selectedColumnsHeader}>
-      <div className={classes.headerTitle}>
-        <h3 className={classes.headerTitleText}>{title}</h3>
-        <div className={classes.columnStats}>
-          <span className={classes.columnCount}>{leafCount} columns</span>
+    <div className="selected-columns-header">
+      <div className="header-title">
+        <h3>{title}</h3>
+        <div className="column-stats">
+          <span className="column-count">{leafCount} columns</span>
           {getSelectedCount() > 0 && (
-            <span className={classes.selectedCount}>{getSelectedCount()} selected</span>
+            <span className="selected-count">{getSelectedCount()} selected</span>
           )}
         </div>
       </div>
       
-      <div className={classes.headerActions}>
-        <div className={classes.selectionActions}>
-          <button 
-            className={classes.actionButton} 
-            onClick={selectAll}
-          >
-            Select All
-          </button>
-          <button 
-            className={classes.actionButton} 
-            onClick={clearSelection}
-          >
-            Clear Selection
-          </button>
+      <div className="header-actions">
+        <div className="selection-actions">
+          <button className="action-button" onClick={selectAll}>Select All</button>
+          <button className="action-button" onClick={clearSelection}>Clear Selection</button>
           {getSelectedCount() > 0 && (
             <button 
-              className={cx(classes.actionButton, classes.groupBtn)}
-              onClick={() => handleContextMenu(new MouseEvent('contextmenu'), selectedIds)}
+              className="action-button group-btn" 
+              onClick={() => handleContextMenu(new MouseEvent('contextmenu') as any, selectedIds)}
               title="Group operations"
             >
               Group...
@@ -319,9 +335,9 @@ const SelectedColumns = ({
           )}
         </div>
         
-        <div className={classes.columnActions}>
+        <div className="column-actions">
           <button 
-            className={cx(classes.actionButton, classes.moveUpBtn)}
+            className="action-button move-up-btn" 
             onClick={moveSelectedUp}
             disabled={getSelectedCount() === 0}
             title="Move selected row(s) up"
@@ -329,7 +345,7 @@ const SelectedColumns = ({
             <span>↑</span>
           </button>
           <button 
-            className={cx(classes.actionButton, classes.moveDownBtn)}
+            className="action-button move-down-btn" 
             onClick={moveSelectedDown}
             disabled={getSelectedCount() === 0}
             title="Move selected row(s) down"
@@ -337,7 +353,7 @@ const SelectedColumns = ({
             <span>↓</span>
           </button>
           <button 
-            className={cx(classes.actionButton, classes.clearBtn)}
+            className="action-button clear-btn" 
             onClick={clearSelected}
             disabled={columns.length === 0}
             title="Clear all selected columns"
@@ -355,30 +371,39 @@ const SelectedColumns = ({
     
     return (
       <div 
-        className={classes.groupContextMenu}
+        className="group-context-menu"
         style={{
+          position: 'fixed',
           top: `${groupMenuPosition.y}px`,
           left: `${groupMenuPosition.x}px`,
+          zIndex: 1000,
+          backgroundColor: 'white',
+          border: '1px solid #ddd',
+          borderRadius: '4px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+          padding: '8px 0'
         }}
       >
         <div 
-          className={classes.menuItem}
+          className="menu-item"
           onClick={handleCreateGroup}
+          style={{ padding: '8px 16px', cursor: 'pointer' }}
         >
           Create new group
         </div>
         
         {columnGroups.length > 0 && (
           <>
-            <div className={classes.menuDivider}></div>
-            <div className={classes.menuLabel}>
+            <div className="menu-divider" style={{ height: '1px', backgroundColor: '#ddd', margin: '4px 0' }}></div>
+            <div className="menu-label" style={{ padding: '4px 16px', color: '#666', fontSize: '12px' }}>
               Add to existing group:
             </div>
             {columnGroups.map(group => (
               <div 
                 key={group.id}
-                className={classes.menuItem}
+                className="menu-item"
                 onClick={() => handleAddToGroup(group.id)}
+                style={{ padding: '8px 16px', cursor: 'pointer' }}
               >
                 {group.name}
               </div>
@@ -386,10 +411,11 @@ const SelectedColumns = ({
           </>
         )}
         
-        <div className={classes.menuDivider}></div>
+        <div className="menu-divider" style={{ height: '1px', backgroundColor: '#ddd', margin: '4px 0' }}></div>
         <div 
-          className={classes.menuItemCancel}
+          className="menu-item"
           onClick={() => setShowGroupMenu(false)}
+          style={{ padding: '8px 16px', cursor: 'pointer', color: '#999' }}
         >
           Cancel
         </div>
@@ -402,31 +428,67 @@ const SelectedColumns = ({
     if (!showCreateGroupDialog) return null;
     
     return (
-      <div className={classes.modalBackdrop}>
-        <div className={classes.modalContent}>
-          <h3 className={classes.modalTitle}>Create Column Group</h3>
-          <div className={classes.formGroup}>
-            <label className={classes.label}>Group Name:</label>
+      <div className="modal-backdrop" style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div className="modal-content" style={{
+          backgroundColor: 'white',
+          borderRadius: '4px',
+          padding: '16px',
+          minWidth: '300px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+        }}>
+          <h3 style={{ margin: '0 0 16px' }}>Create Column Group</h3>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', marginBottom: '8px' }}>Group Name:</label>
             <input 
               type="text"
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
-              className={classes.textInput}
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid #ddd'
+              }}
               autoFocus
             />
           </div>
-          <div className={classes.modalActions}>
+          <div style={{ textAlign: 'right' }}>
             <button 
               onClick={() => setShowCreateGroupDialog(false)}
-              className={classes.modalCancelBtn}
+              style={{
+                padding: '8px 16px',
+                marginRight: '8px',
+                backgroundColor: '#f5f5f5',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
             >
               Cancel
             </button>
             <button 
               onClick={submitCreateGroup}
               disabled={!newGroupName.trim()}
-              className={classes.modalConfirmBtn}
-              style={{ opacity: newGroupName.trim() ? 1 : 0.5 }}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#1890ff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                opacity: newGroupName.trim() ? 1 : 0.5
+              }}
             >
               Create
             </button>
@@ -437,7 +499,7 @@ const SelectedColumns = ({
   };
   
   // Render a group header
-  const renderGroupHeader = (groupId) => {
+  const renderGroupHeader = (groupId: string) => {
     const group = columnGroups.find(g => g.id === groupId);
     if (!group) return null;
     
@@ -446,10 +508,7 @@ const SelectedColumns = ({
     
     return (
       <div 
-        className={cx(
-          classes.groupHeader,
-          isBeingDraggedOver ? classes.groupHeaderDragOver : ''
-        )}
+        className={`group-header ${isBeingDraggedOver ? 'drag-over' : ''}`}
         onDragOver={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -470,25 +529,25 @@ const SelectedColumns = ({
               if (e.key === 'Enter') handleSaveGroupName();
               if (e.key === 'Escape') handleCancelEditGroup();
             }}
-            className={classes.textInput}
           />
         ) : (
           <div 
-            className={classes.groupName}
+            className="group-name"
             draggable
             onDragStart={(e) => handleGroupDragStart(e, group)}
+            style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}
           >
-            <span className={classes.groupMoveHandle}>⋮⋮</span>
+            <span className="group-move-handle">⋮⋮</span>
             <span>{group.name}</span>
-            <span className={classes.groupCount}>({group.columnIds.length})</span>
+            <span className="group-count">({group.columnIds.length})</span>
           </div>
         )}
         
-        <div className={classes.groupActions}>
+        <div className="group-actions">
           {!isEditing && (
             <>
               <button 
-                className={classes.actionButton}
+                className="action-button"
                 onClick={() => handleStartEditGroup(group.id, group.name)}
                 title="Rename group"
                 style={{ marginRight: '4px' }}
@@ -496,7 +555,7 @@ const SelectedColumns = ({
                 ✎
               </button>
               <button 
-                className={classes.actionButton}
+                className="action-button"
                 onClick={() => handleDeleteGroup(group.id)}
                 title="Delete group"
               >
@@ -510,19 +569,19 @@ const SelectedColumns = ({
   };
   
   // Function to handle a column item being dropped on a group
-  const handleColumnDropOnGroup = (groupId, columnIds) => {
+  const handleColumnDropOnGroup = (groupId: string, columnIds: string[]) => {
     onAddToGroup(columnIds, groupId);
   };
   
   return (
     <div 
-      className={classes.selectedColumnsContainer}
+      className="selected-columns-container"
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
     >
       {renderCustomHeader()}
       
-      <div className={classes.selectedColumnsContent}>
+      <div className="selected-columns-content">
         <TreeView
           items={groupedColumns}
           selectedIds={selectedIds}
@@ -546,7 +605,6 @@ const SelectedColumns = ({
           onDropOnGroup={handleColumnDropOnGroup}
           onRemoveFromGroup={handleRemoveFromGroup}
           moveItemsToSelected={moveItemsToSelected}
-          classes={classes}
         />
       </div>
       
