@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { GridReadyEvent, ColDef } from 'ag-grid-community';
+import { GridReadyEvent, ColDef, ColGroupDef } from 'ag-grid-community';
 import { ColumnItem, ColumnGroup } from '../types';
 import ColumnChooser from './ColumnChooser';
 import { convertToTreeStructure } from '../utils/columnUtils';
@@ -57,7 +57,7 @@ const Grid: React.FC<GridProps> = ({
   const convertColumnsFormat = useCallback((columns: ColDef[]) => {
     return columns.map(col => ({
       id: col.field || `col_${Math.random().toString(36).substring(2, 9)}`,
-      field: col.field,
+      field: col.field || `col_${Math.random().toString(36).substring(2, 9)}`,
       groupPath: col.headerName ? [col.headerName] : [col.field || '']
     }));
   }, []);
@@ -219,7 +219,7 @@ const Grid: React.FC<GridProps> = ({
           result.push({
             headerName: group.name,
             children: groupChildren
-          });
+          } as ColGroupDef);
           
           processedGroups.add(groupId);
         }
