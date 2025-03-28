@@ -1,6 +1,7 @@
+// src/components/ColumnChooser/ToolGrid.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { ColumnApi, GridApi, GridReadyEvent, ColDef, ColGroupDef } from 'ag-grid-community';
+import { ColumnApi, GridApi, GridReadyEvent } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { 
@@ -9,9 +10,12 @@ import {
   TreeNode, 
   SelectedNode, 
   SelectedGroup,
-  ColumnChangeEvent
+  ColumnChangeEvent,
+  ColumnGroup
 } from './types';
 import ColumnChooser from './ColumnChooser';
+import { buildColumnTree } from './utils/treeUtils';
+import { createGridColumnDefs } from './utils/columnUtils';
 
 const ToolGrid: React.FC<ToolGridProps> = ({
   columnDefs,
@@ -70,160 +74,43 @@ const ToolGrid: React.FC<ToolGridProps> = ({
 
   // Build tree structure for available columns based on groupPath
   useEffect(() => {
-    const buildTree = () => {
-      const tree: TreeNode[] = [];
-      const nodeMap: { [path: string]: TreeNode } = {};
-
-      // Create a helper function to ensure a path exists in the tree
-      const ensurePathExists = (pathSegments: string[], parentPath: string[] = []): TreeNode => {
-        if (pathSegments.length === 0) return { id: '', name: '', children: [], isGroup: false };
-
-        const currentSegment = pathSegments[0];
-        const currentPath = [...parentPath, currentSegment];
-        const currentPathString = currentPath.join('/');
-
-        if (!nodeMap[currentPathString]) {
-          const newNode: TreeNode = {
-            id: currentPathString,
-            name: currentSegment,
-            children: [],
-            isGroup: true,
-            isExpanded: true,
-            parentPath
-          };
-
-          nodeMap[currentPathString] = newNode;
-
-          // Add to parent or to root
-          if (parentPath.length === 0) {
-            tree.push(newNode);
-          } else {
-            const parentPathString = parentPath.join('/');
-            const parentNode = nodeMap[parentPathString];
-            if (parentNode) {
-              parentNode.children.push(newNode);
-            }
-          }
-        }
-
-        if (pathSegments.length > 1) {
-          return ensurePathExists(pathSegments.slice(1), currentPath);
-        }
-
-        return nodeMap[currentPathString];
-      };
-
-      // Filter out columns that are already selected
-      const selectedColumnIds = selectedColumns.map(col => col.id);
-      const availableColumns = normalizedColumnDefs.filter(
-        col => !selectedColumnIds.includes(col.id!)
-      );
-
-      // Populate the tree with available columns
-      availableColumns.forEach(col => {
-        const groupPath = col.groupPath || [];
-        
-        if (groupPath.length === 0) {
-          // If no group path, add directly to the root
-          tree.push({
-            id: col.id!,
-            name: col.headerName || col.field || 'Unnamed Column',
-            children: [],
-            column: col,
-            isGroup: false
-          });
-        } else {
-          // Ensure the path exists and add the column as a leaf node
-          const parentNode = ensurePathExists(groupPath);
-          parentNode.children.push({
-            id: col.id!,
-            name: col.headerName || col.field || 'Unnamed Column',
-            children: [],
-            column: col,
-            isGroup: false
-          });
-        }
-      });
-
-      // Filter out empty groups
-      const filterEmptyGroups = (nodes: TreeNode[]): TreeNode[] => {
-        return nodes.filter(node => {
-          if (node.isGroup) {
-            node.children = filterEmptyGroups(node.children);
-            return node.children.length > 0;
-          }
-          return true;
-        });
-      };
-
-      return filterEmptyGroups(tree);
-    };
-
-    setAvailableTree(buildTree());
+    // Get IDs of selected columns to filter them out from available columns
+    const selectedColumnIds = selectedColumns.map(col => col.id);
+    
+    // Build the tree structure
+    const tree = buildColumnTree(normalizedColumnDefs, selectedColumnIds);
+    
+    // Log for debugging
+    console.log("Available Tree:", tree);
+    console.log("Selected Columns:", selectedColumns);
+    
+    setAvailableTree(tree);
   }, [normalizedColumnDefs, selectedColumns]);
 
   // Apply selected columns to the grid with appropriate grouping
   useEffect(() => {
     if (apiRef.current.column) {
       // Create AG Grid column definitions with groups
-      const gridColDefs = createGridColumnDefs();
+      const gridColDefs = createGridColumnDefs(
+        selectedColumns, 
+        selectedGroups,
+        normalizedColumnDefs
+      );
       
       // Update grid columns
       apiRef.current.grid?.setColumnDefs(gridColDefs);
     }
-  }, [selectedColumns, selectedGroups]);
-
-  // Create AG Grid column definitions with grouping
-  const createGridColumnDefs = (): (ColDef | ColGroupDef)[] => {
-    // First, get all ungrouped columns
-    const groupedColumnIds = selectedGroups.flatMap(g => g.children);
-    const ungroupedColumns = selectedColumns
-      .filter(col => !groupedColumnIds.includes(col.id))
-      .map(node => ({
-        ...node.column,
-        hide: false
-      }));
-    
-    // Create column group definitions
-    const groupDefs: ColGroupDef[] = selectedGroups.map(group => {
-      // Get columns for this group
-      const groupColumns = selectedColumns
-        .filter(col => group.children.includes(col.id))
-        .map(node => ({
-          ...node.column,
-          hide: false
-        }));
-      
-      // Ensure columns appear in the correct order in the group
-      const orderedColumns: ColDef[] = [];
-      group.children.forEach(childId => {
-        const column = groupColumns.find(col => (col.id === childId || col.field === childId));
-        if (column) {
-          orderedColumns.push(column);
-        }
-      });
-      
-      return {
-        headerName: group.name,
-        children: orderedColumns
-      };
-    });
-    
-    // Combine group definitions with ungrouped columns
-    const visibleColumnDefs = [...groupDefs, ...ungroupedColumns];
-    
-    // Add hidden columns (those in available)
-    const hiddenColumns = normalizedColumnDefs
-      .filter(col => !selectedColumns.find(selected => selected.id === col.id))
-      .map(col => ({ ...col, hide: true }));
-    
-    return [...visibleColumnDefs, ...hiddenColumns];
-  };
+  }, [selectedColumns, selectedGroups, normalizedColumnDefs]);
 
   // Handle grid ready event
   const onGridReady = (params: GridReadyEvent) => {
     apiRef.current.grid = params.api;
     apiRef.current.column = params.columnApi;
+    
+    // Call user's onGridReady if provided in gridOptions
+    if (gridOptions.onGridReady) {
+      gridOptions.onGridReady(params);
+    }
   };
 
   // Toggle column chooser visibility
@@ -304,6 +191,19 @@ const ToolGrid: React.FC<ToolGridProps> = ({
     }
   };
 
+  // Create the final grid options by combining defaults with user-provided options
+  const finalGridOptions = {
+    ...gridOptions,
+    onGridReady
+  };
+  
+  // Log state for debugging
+  console.log("ToolGrid Rendering:", {
+    availableTree,
+    selectedColumns,
+    selectedGroups
+  });
+
   return (
     <div className={`tool-grid-container ${className}`}>
       <div className="tool-grid-header">
@@ -319,7 +219,6 @@ const ToolGrid: React.FC<ToolGridProps> = ({
           selectedGroups={selectedGroups}
           onColumnSelectionChange={handleColumnSelectionChange}
           onColumnGroupChange={handleColumnGroupChange}
-          setSelectedGroups={setSelectedGroups}
         />
       )}
 
@@ -328,9 +227,12 @@ const ToolGrid: React.FC<ToolGridProps> = ({
           ref={gridRef}
           rowData={rowData}
           // Use grouped column definitions
-          columnDefs={createGridColumnDefs()}
-          onGridReady={onGridReady}
-          {...gridOptions}
+          columnDefs={createGridColumnDefs(
+            selectedColumns, 
+            selectedGroups,
+            normalizedColumnDefs
+          )}
+          {...finalGridOptions}
         />
       </div>
     </div>

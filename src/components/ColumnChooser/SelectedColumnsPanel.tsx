@@ -186,7 +186,7 @@ const SelectedColumnsPanel = ({
         const end = Math.max(lastSelectedIndex, currentIndex);
         const rangeIds = allColumnIds.slice(start, end + 1);
         
-        setSelectedIds([...new Set([...selectedIds, ...rangeIds])]);
+        setSelectedIds(Array.from(new Set([...selectedIds, ...rangeIds])));
       }
     } else {
       // Single selection

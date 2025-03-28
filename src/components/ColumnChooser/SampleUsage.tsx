@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// src/components/ColumnChooser/SampleUsage.tsx
+import React, { useState, useCallback } from 'react';
 import { 
   ToolGrid, 
   ExtendedColDef, 
@@ -6,9 +7,12 @@ import {
   ColumnGroup
 } from './index';
 
+/**
+ * Sample component demonstrating the usage of the ToolGrid component
+ */
 const SampleUsage: React.FC = () => {
   // Generate 100 sequential columns
-  const generateColumns = (): ExtendedColDef[] => {
+  const generateColumns = useCallback((): ExtendedColDef[] => {
     const columns: ExtendedColDef[] = [];
     
     for (let i = 1; i <= 100; i++) {
@@ -35,7 +39,7 @@ const SampleUsage: React.FC = () => {
     }
     
     return columns;
-  };
+  }, []);
   
   const initialColumnDefs = generateColumns();
 
@@ -64,39 +68,46 @@ const SampleUsage: React.FC = () => {
   ];
 
   // Generate sample row data
-  const generateRowData = (rowCount: number) => {
-    const rows = [];
+  const generateRowData = useCallback((rowCount: number) => {
+    const rows: Record<string, any>[] = [];
     
     for (let i = 1; i <= rowCount; i++) {
       const row: Record<string, any> = { id: i };
       
       // Add all fields to the row
       for (let j = 1; j <= 100; j++) {
-        row[`field${j}`] = `Field ${j}`;
+        // Add some variety to the data
+        if (j % 5 === 0) {
+          row[`field${j}`] = i * j;
+        } else if (j % 3 === 0) {
+          row[`field${j}`] = `Value ${i}-${j}`;
+        } else {
+          row[`field${j}`] = `Data ${String.fromCharCode(64 + (i % 26) + 1)}${j}`;
+        }
       }
       
       rows.push(row);
     }
     
     return rows;
-  };
+  }, []);
 
-  const rowData = generateRowData(5);
+  const rowData = generateRowData(20);
 
   // State for column defs and groups
-  const [columnDefs, setColumnDefs] = useState<ExtendedColDef[]>(initialColumnDefs);
+  const [columnDefs] = useState<ExtendedColDef[]>(initialColumnDefs);
   const [columnGroups, setColumnGroups] = useState<ColumnGroup[]>(initialColumnGroups);
 
   // Handle column changes
-  const handleColumnChanged = (event: ColumnChangeEvent) => {
+  const handleColumnChanged = useCallback((event: ColumnChangeEvent) => {
     console.log('Column changed:', event);
     
-    // You can update your state here if needed
+    // In a real application, you would update your state here
     // This example just logs the event
-  };
+  }, []);
 
   // Handle column group changes
-  const handleColumnGroupChanged = (
+  const handleColumnGroupChanged = useCallback((
     headerName: string, 
     action: 'REMOVE' | 'UPDATE', 
     replaceName?: string
@@ -114,18 +125,46 @@ const SampleUsage: React.FC = () => {
         )
       );
     }
-  };
+  }, []);
 
   return (
     <div className="sample-container">
       <h1>AG Grid Column Chooser Example</h1>
-      <ToolGrid
-        columnDefs={columnDefs}
-        rowData={rowData}
-        columnGroups={columnGroups}
-        onColumnChanged={handleColumnChanged}
-        onColumnGroupChanged={handleColumnGroupChanged}
-      />
+      <p>
+        This example demonstrates a fully functional column chooser for AG Grid with:
+      </p>
+      <ul>
+        <li>Drag-and-drop for moving columns between available and selected panels</li>
+        <li>Tree view for available columns with groups and subgroups</li>
+        <li>Column grouping in the selected panel</li>
+        <li>Search functionality in both panels</li>
+        <li>Multiple selection with Ctrl/Cmd+click and Shift+click</li>
+        <li>Context menu for operations like creating groups</li>
+      </ul>
+      <p>
+        Click the &ldquo;Show Column Chooser&rdquo; button to start managing columns.
+      </p>
+      
+      <div style={{ marginTop: '20px' }}>
+        <ToolGrid
+          columnDefs={columnDefs}
+          rowData={rowData}
+          columnGroups={columnGroups}
+          onColumnChanged={handleColumnChanged}
+          onColumnGroupChanged={handleColumnGroupChanged}
+          gridOptions={{
+            pagination: true,
+            paginationPageSize: 10,
+            suppressRowClickSelection: true,
+            rowSelection: 'multiple',
+            defaultColDef: {
+              resizable: true,
+              sortable: true,
+              filter: true
+            }
+          }}
+        />
+      </div>
     </div>
   );
 };
