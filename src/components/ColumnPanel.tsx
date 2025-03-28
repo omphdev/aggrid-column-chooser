@@ -20,6 +20,9 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
   // State for drop indicator
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number>(-1);
   
+  // State to track which panel is the current drop target
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  
   // Refs for the panels
   const availablePanelRef = useRef<HTMLDivElement>(null);
   const selectedPanelRef = useRef<HTMLDivElement>(null);
@@ -163,7 +166,14 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     setSelectedColumns(newSelectedColumns);
     setSelectedItems([]);
     
-    onColumnChanged(newSelectedColumns, 'ADD');
+    // Important: Create a completely new array with explicit order to be used by the grid
+    const orderedColumns = [...newSelectedColumns].map(col => ({
+      ...col,
+      hide: false
+    }));
+    
+    // Notify parent component about the updated columns with specific operation type
+    onColumnChanged(orderedColumns, 'ADD_AT_INDEX');
   };
 
   // Function to move columns from selected to available
@@ -195,7 +205,41 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     setSelectedColumns(newSelectedColumns);
     setSelectedItems([]);
     
+    // Notify parent component about the updated columns
     onColumnChanged(newSelectedColumns, 'REMOVED');
+  };
+
+  // Function to reorder a column within the selected panel
+  const reorderColumn = (columnId: string, targetIndex: number) => {
+    const columnIndex = selectedColumns.findIndex(col => col.field === columnId);
+    if (columnIndex === -1 || targetIndex < 0) return;
+    
+    // If trying to drop at the same index or right after self, no change is needed
+    if (targetIndex === columnIndex || targetIndex === columnIndex + 1) return;
+    
+    const column = selectedColumns[columnIndex];
+    
+    // Create a new array with all columns except the one being moved
+    const newSelectedColumns = selectedColumns.filter((_, idx) => idx !== columnIndex);
+    
+    // Adjust the target index if it's after the current position
+    // This is needed because after removing the item, indices shift
+    const adjustedTargetIndex = targetIndex > columnIndex ? targetIndex - 1 : targetIndex;
+    
+    // Insert the column at the adjusted target position
+    newSelectedColumns.splice(adjustedTargetIndex, 0, column);
+    
+    // Update state
+    setSelectedColumns(newSelectedColumns);
+    
+    // Create a completely new array with explicit order
+    const orderedColumns = [...newSelectedColumns].map(col => ({
+      ...col,
+      hide: false
+    }));
+    
+    // Notify parent component about the reordering with specific operation type
+    onColumnChanged(orderedColumns, 'REORDER_AT_INDEX');
   };
 
   // Function to move selected columns up in the selected panel
@@ -219,6 +263,8 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     });
     
     setSelectedColumns(newSelectedColumns);
+    
+    // Notify parent component about the reordering
     onColumnChanged(newSelectedColumns, 'REORDERED');
   };
 
@@ -243,6 +289,8 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     });
     
     setSelectedColumns(newSelectedColumns);
+    
+    // Notify parent component about the reordering
     onColumnChanged(newSelectedColumns, 'REORDERED');
   };
 
@@ -261,6 +309,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     setSelectedColumns([]);
     setSelectedItems([]);
     
+    // Notify parent component that all columns were removed
     onColumnChanged([], 'REMOVED');
   };
 
@@ -268,20 +317,34 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, column: ExtendedColDef, isAvailable: boolean) => {
     e.dataTransfer.setData('columnId', column.field);
     e.dataTransfer.setData('sourcePanel', isAvailable ? 'available' : 'selected');
+    
+    // Set the drag effect
+    e.dataTransfer.effectAllowed = 'move';
   };
 
-  // IMPROVED: Direct calculation of drop index
+  // Function to calculate the drop index based on mouse position
   const calculateDropIndex = (e: React.DragEvent<HTMLDivElement>) => {
-    // Get all column items directly from the selected panel
-    const columnItems = selectedPanelRef.current?.querySelectorAll('.column-item');
+    const selectedPanelElement = selectedPanelRef.current;
+    if (!selectedPanelElement) return 0;
+    
+    // Get the list container that holds the columns
+    const columnsList = selectedPanelElement.querySelector('.columns-list');
+    if (!columnsList) return 0;
+    
+    // Get all column items
+    const columnItems = columnsList.querySelectorAll('.column-item');
     if (!columnItems || columnItems.length === 0) return 0;
     
-    const mouseY = e.clientY;
+    // Get mouse position relative to the container
+    const containerRect = columnsList.getBoundingClientRect();
+    const mouseY = e.clientY - containerRect.top;
     
     // Loop through each item and check if mouse is above its middle point
     for (let i = 0; i < columnItems.length; i++) {
       const itemRect = columnItems[i].getBoundingClientRect();
-      const itemMiddle = itemRect.top + (itemRect.height / 2);
+      const itemTop = itemRect.top - containerRect.top;
+      const itemHeight = itemRect.height;
+      const itemMiddle = itemTop + (itemHeight / 2);
       
       if (mouseY < itemMiddle) {
         return i;
@@ -295,14 +358,31 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, panel: string) => {
     e.preventDefault();
     
+    // Set the drop effect
+    e.dataTransfer.dropEffect = 'move';
+    
+    // Set current drop target panel
+    setDropTarget(panel);
+    
     if (panel === 'selected') {
       // Calculate drop index directly based on mouse position
       const index = calculateDropIndex(e);
-      setDropIndicatorIndex(index);
+      
+      // Update the dropIndicatorIndex state only if it has changed
+      // This prevents unnecessary re-renders
+      if (index !== dropIndicatorIndex) {
+        setDropIndicatorIndex(index);
+      }
     }
   };
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    // Only clear drop target if leaving the container (not just moving between children)
+    if (e.currentTarget.contains(e.relatedTarget as Node)) {
+      return;
+    }
+    
+    setDropTarget(null);
     setDropIndicatorIndex(-1);
   };
 
@@ -312,13 +392,25 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     const columnId = e.dataTransfer.getData('columnId');
     const sourcePanel = e.dataTransfer.getData('sourcePanel');
     
+    // Calculate the final drop index at the time of drop
+    // This ensures we have the most up-to-date position
+    const finalDropIndex = panel === 'selected' ? calculateDropIndex(e) : -1;
+    
     if (sourcePanel === 'available' && panel === 'selected') {
-      // Use the calculated drop index
-      moveToSelected([columnId], dropIndicatorIndex);
+      console.log(`Moving column ${columnId} to index ${finalDropIndex}`);
+      // Move from available to selected at the calculated drop index
+      moveToSelected([columnId], finalDropIndex);
     } else if (sourcePanel === 'selected' && panel === 'available') {
+      // Move from selected to available
       moveToAvailable([columnId]);
+    } else if (sourcePanel === 'selected' && panel === 'selected') {
+      console.log(`Reordering column ${columnId} to index ${finalDropIndex}`);
+      // Reorder within the selected panel
+      reorderColumn(columnId, finalDropIndex);
     }
     
+    // Reset drop indicators
+    setDropTarget(null);
     setDropIndicatorIndex(-1);
   };
 
@@ -396,7 +488,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
           <div className="panel-content">
             <div 
               ref={availablePanelRef}
-              className="columns-list-container"
+              className={`columns-list-container ${dropTarget === 'available' ? 'drop-target-active' : ''}`}
               onDragOver={(e) => handleDragOver(e, 'available')}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, 'available')}
@@ -426,7 +518,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
           <div className="panel-content">
             <div 
               ref={selectedPanelRef}
-              className="columns-list-container"
+              className={`columns-list-container ${dropTarget === 'selected' ? 'drop-target-active' : ''}`}
               onDragOver={(e) => handleDragOver(e, 'selected')}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, 'selected')}

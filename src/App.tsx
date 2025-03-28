@@ -96,9 +96,12 @@ const App: React.FC = () => {
 
   // Handle column changes
   const handleColumnChanged = (selectedColumns: ExtendedColDef[], operationType: OperationType) => {
-    console.log('Column changed:', operationType, selectedColumns);
+    console.log('Column changed:', operationType, selectedColumns.map(col => col.field).join(', '));
     
-    // Update column definitions with the new visibility settings
+    // Note: operationType might be one of our standard types like 'ADD', 'REMOVED', 'REORDERED'
+    // We're letting the ToolGrid component handle the actual column ordering now
+    
+    // For all operations, we only need to update the hide property in our state
     const updatedColumnDefs = columnDefs.map(col => {
       // Check if this column is in the selectedColumns array
       const isSelected = selectedColumns.some(selCol => selCol.field === col.field);
@@ -137,18 +140,21 @@ const App: React.FC = () => {
     }
   };
 
+  // Sample data for the grid
+  const rowData = [
+    { id: 1, name: 'John Doe', age: 30, email: 'john@example.com', phone: '123-456-7890', address: '123 Main St', city: 'New York', state: 'NY', zip: '10001', country: 'USA', salary: 100000, department: 'Engineering', position: 'Developer', startDate: '2020-01-01' },
+    { id: 2, name: 'Jane Smith', age: 25, email: 'jane@example.com', phone: '098-765-4321', address: '456 Park Ave', city: 'Los Angeles', state: 'CA', zip: '90001', country: 'USA', salary: 110000, department: 'Marketing', position: 'Manager', startDate: '2019-03-15' },
+    { id: 3, name: 'Bob Johnson', age: 35, email: 'bob@example.com', phone: '555-123-4567', address: '789 Oak St', city: 'Chicago', state: 'IL', zip: '60601', country: 'USA', salary: 95000, department: 'Sales', position: 'Representative', startDate: '2021-06-10' },
+    { id: 4, name: 'Alice Williams', age: 28, email: 'alice@example.com', phone: '555-987-6543', address: '321 Pine St', city: 'Boston', state: 'MA', zip: '02108', country: 'USA', salary: 105000, department: 'Engineering', position: 'Developer', startDate: '2020-04-20' },
+    { id: 5, name: 'Charlie Brown', age: 40, email: 'charlie@example.com', phone: '555-567-8901', address: '654 Maple St', city: 'San Francisco', state: 'CA', zip: '94102', country: 'USA', salary: 120000, department: 'Product', position: 'Manager', startDate: '2018-09-05' },
+  ];
+
   return (
     <div className="app-container">
       <h1>AG Grid Column Chooser Example</h1>
       <ToolGrid
         columnDefs={columnDefs}
-        rowData={[
-          { id: 1, name: 'John Doe', age: 30, email: 'john@example.com', phone: '123-456-7890', address: '123 Main St', city: 'New York', state: 'NY', zip: '10001', country: 'USA', salary: 100000, department: 'Engineering', position: 'Developer', startDate: '2020-01-01' },
-          { id: 2, name: 'Jane Smith', age: 25, email: 'jane@example.com', phone: '098-765-4321', address: '456 Park Ave', city: 'Los Angeles', state: 'CA', zip: '90001', country: 'USA', salary: 110000, department: 'Marketing', position: 'Manager', startDate: '2019-03-15' },
-          { id: 3, name: 'Bob Johnson', age: 35, email: 'bob@example.com', phone: '555-123-4567', address: '789 Oak St', city: 'Chicago', state: 'IL', zip: '60601', country: 'USA', salary: 95000, department: 'Sales', position: 'Representative', startDate: '2021-06-10' },
-          { id: 4, name: 'Alice Williams', age: 28, email: 'alice@example.com', phone: '555-987-6543', address: '321 Pine St', city: 'Boston', state: 'MA', zip: '02108', country: 'USA', salary: 105000, department: 'Engineering', position: 'Developer', startDate: '2020-04-20' },
-          { id: 5, name: 'Charlie Brown', age: 40, email: 'charlie@example.com', phone: '555-567-8901', address: '654 Maple St', city: 'San Francisco', state: 'CA', zip: '94102', country: 'USA', salary: 120000, department: 'Product', position: 'Manager', startDate: '2018-09-05' },
-        ]}
+        rowData={rowData}
         configPanelParams={{
           configPanel: {
             columnGroups: columnGroups,

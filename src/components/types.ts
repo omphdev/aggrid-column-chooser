@@ -7,7 +7,14 @@ export interface ExtendedColDef extends ColDef {
 }
 
 // Define operation types for column changes
-export type OperationType = 'INSERT' | 'ADD' | 'REMOVED' | 'REORDERED' | 'NONE';
+export type OperationType = 
+  | 'INSERT' 
+  | 'ADD' 
+  | 'ADD_AT_INDEX' 
+  | 'REMOVED' 
+  | 'REORDERED' 
+  | 'REORDER_AT_INDEX' 
+  | 'NONE';
 
 // Define column group actions
 export type ColumnGroupAction = 'REMOVE' | 'UPDATE';
