@@ -11,6 +11,9 @@ interface ExtendedMainGridProps extends MainGridProps {
 
 const MainGrid: React.FC<ExtendedMainGridProps> = ({ columnDefs, rowData, getGridApi }) => {
   const gridRef = useRef<AgGridReact>(null);
+  
+  // Flag to track if columns are being updated
+  const isUpdatingColumnsRef = useRef<boolean>(false);
 
   // Handle grid ready event
   const onGridReady = (params: any) => {
@@ -23,17 +26,28 @@ const MainGrid: React.FC<ExtendedMainGridProps> = ({ columnDefs, rowData, getGri
   // Update grid when column definitions change
   useEffect(() => {
     if (!gridRef.current || !gridRef.current.api) return;
+    
+    // Set the updating flag to prevent multiple updates
+    if (isUpdatingColumnsRef.current) return;
+    isUpdatingColumnsRef.current = true;
 
     // Update the column definitions
     gridRef.current.api.setColumnDefs(columnDefs);
     
     // Force the column order to match exactly what was provided
+    const columnState = columnDefs.map(col => ({
+      colId: col.field
+    }));
+    
     gridRef.current.columnApi.applyColumnState({
-      state: columnDefs.map(col => ({
-        colId: col.field
-      })),
+      state: columnState,
       applyOrder: true
     });
+    
+    // Reset the updating flag after a short delay
+    setTimeout(() => {
+      isUpdatingColumnsRef.current = false;
+    }, 100);
   }, [columnDefs]);
 
   return (
@@ -54,6 +68,9 @@ const MainGrid: React.FC<ExtendedMainGridProps> = ({ columnDefs, rowData, getGri
         maintainColumnOrder={true}
         suppressColumnVirtualisation={true}
         suppressMovableColumns={false}
+        columnHoverHighlight={false} // Disable hover effect to prevent unintended interactions
+        enableCellTextSelection={true} // Enable text selection to reduce accidental drag-drop
+        suppressRowDrag={true} // Disable row drag to avoid confusion with column drag
       />
     </div>
   );

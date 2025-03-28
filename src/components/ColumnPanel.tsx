@@ -23,12 +23,34 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
   // State to track which panel is the current drop target
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   
+  // State to track the currently dragged column
+  const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
+  
+  // State to track the currently dragged group
+  const [draggedGroupPath, setDraggedGroupPath] = useState<string | null>(null);
+  
+  // State for group drop target (for when dragging onto a group)
+  const [groupDropTarget, setGroupDropTarget] = useState<string | null>(null);
+  
+  // State for context menu
+  const [contextMenuPosition, setContextMenuPosition] = useState<{x: number, y: number} | null>(null);
+  const [contextMenuTargetGroup, setContextMenuTargetGroup] = useState<string | null>(null);
+  
+  // Flag to prevent multiple state updates during reordering
+  const isReorderingRef = useRef<boolean>(false);
+  
+  // Last reordering operation timestamp to prevent duplicates
+  const lastReorderTimeRef = useRef<number>(0);
+  
   // Refs for the panels
   const availablePanelRef = useRef<HTMLDivElement>(null);
   const selectedPanelRef = useRef<HTMLDivElement>(null);
 
   // Initialize columns on mount and when columnDefs change
   useEffect(() => {
+    // Don't update if we're in the middle of a reordering operation
+    if (isReorderingRef.current) return;
+    
     // Create initial available columns (columns with hide: true)
     setAvailableColumns(columnDefs.filter(col => col.hide === true));
     
@@ -71,8 +93,31 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     return tree;
   }, []);
 
+  // Function to get all columns in a group and its subgroups
+  const getAllColumnsInGroup = (groupPath: string) => {
+    const pathSegments = groupPath.split('.');
+    
+    // Extract all columns that belong to this group or its subgroups
+    return availableColumns.filter(col => {
+      // No group path means it's not in a group
+      if (!col.groupPath || col.groupPath.length === 0) return false;
+      
+      // Check if the column's group path starts with our target path segments
+      for (let i = 0; i < pathSegments.length; i++) {
+        if (i >= col.groupPath.length || col.groupPath[i] !== pathSegments[i]) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  };
+
   // Function to toggle group expansion
-  const toggleGroup = (groupPath: string) => {
+  const toggleGroup = (e: React.MouseEvent, groupPath: string) => {
+    // Stop propagation to prevent other event handlers from firing
+    e.stopPropagation();
+    
     const newExpandedGroups = new Set(expandedGroups);
     
     if (newExpandedGroups.has(groupPath)) {
@@ -162,9 +207,13 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
       newSelectedColumns = [...newSelectedColumns, ...updatedColumnsToMove];
     }
     
+    // Update local state
     setAvailableColumns(newAvailableColumns);
     setSelectedColumns(newSelectedColumns);
     setSelectedItems([]);
+    
+    // Mark that we are reordering to prevent duplicate updates
+    isReorderingRef.current = true;
     
     // Important: Create a completely new array with explicit order to be used by the grid
     const orderedColumns = [...newSelectedColumns].map(col => ({
@@ -174,6 +223,25 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     
     // Notify parent component about the updated columns with specific operation type
     onColumnChanged(orderedColumns, 'ADD_AT_INDEX');
+    
+    // Reset reordering flag after a short delay to allow for state updates
+    setTimeout(() => {
+      isReorderingRef.current = false;
+    }, 100);
+  };
+
+  // Function to move an entire group from available to selected
+  const moveGroupToSelected = (groupPath: string, targetIndex?: number) => {
+    // Get all columns in this group and subgroups
+    const groupColumns = getAllColumnsInGroup(groupPath);
+    
+    // Extract column IDs
+    const columnIds = groupColumns.map(col => col.field);
+    
+    if (columnIds.length === 0) return;
+    
+    // Use the standard moveToSelected function to move all columns
+    moveToSelected(columnIds, targetIndex);
   };
 
   // Function to move columns from selected to available
@@ -201,6 +269,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     // Add columns to available
     const newAvailableColumns = [...availableColumns, ...updatedColumnsToMove];
     
+    // Update local state
     setAvailableColumns(newAvailableColumns);
     setSelectedColumns(newSelectedColumns);
     setSelectedItems([]);
@@ -211,35 +280,132 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
 
   // Function to reorder a column within the selected panel
   const reorderColumn = (columnId: string, targetIndex: number) => {
-    const columnIndex = selectedColumns.findIndex(col => col.field === columnId);
-    if (columnIndex === -1 || targetIndex < 0) return;
+    // If we're dragging multiple columns, we need to handle them all
+    const columnsToMove = selectedItems.includes(columnId) 
+      ? selectedItems 
+      : [columnId];
     
-    // If trying to drop at the same index or right after self, no change is needed
-    if (targetIndex === columnIndex || targetIndex === columnIndex + 1) return;
+    // Prevent multiple rapid reordering operations
+    const now = Date.now();
+    if (now - lastReorderTimeRef.current < 200) {
+      console.log('Ignoring rapid reordering request');
+      return;
+    }
     
-    const column = selectedColumns[columnIndex];
+    // Update the timestamp
+    lastReorderTimeRef.current = now;
     
-    // Create a new array with all columns except the one being moved
-    const newSelectedColumns = selectedColumns.filter((_, idx) => idx !== columnIndex);
+    // Find indices of columns to move
+    const columnIndices = columnsToMove
+      .map(id => selectedColumns.findIndex(col => col.field === id))
+      .filter(index => index !== -1)
+      .sort((a, b) => a - b); // Sort in ascending order
     
-    // Adjust the target index if it's after the current position
-    // This is needed because after removing the item, indices shift
-    const adjustedTargetIndex = targetIndex > columnIndex ? targetIndex - 1 : targetIndex;
+    if (columnIndices.length === 0 || targetIndex < 0) return;
     
-    // Insert the column at the adjusted target position
-    newSelectedColumns.splice(adjustedTargetIndex, 0, column);
+    console.log(`Reordering columns [${columnsToMove.join(', ')}] to index ${targetIndex}`);
     
-    // Update state
-    setSelectedColumns(newSelectedColumns);
+    // Mark that we are reordering
+    isReorderingRef.current = true;
     
-    // Create a completely new array with explicit order
-    const orderedColumns = [...newSelectedColumns].map(col => ({
+    // Create a deep copy to avoid mutation issues
+    const columnsCopy = JSON.parse(JSON.stringify(selectedColumns));
+    
+    // Create an array of columns to move
+    const movedColumns = columnIndices.map(index => columnsCopy[index]);
+    
+    // Remove columns from original array (in reverse order to maintain correct indices)
+    for (let i = columnIndices.length - 1; i >= 0; i--) {
+      columnsCopy.splice(columnIndices[i], 1);
+    }
+    
+    // Adjust the target index based on how many items were removed before the target
+    let adjustedTargetIndex = targetIndex;
+    for (const index of columnIndices) {
+      if (index < targetIndex) {
+        adjustedTargetIndex--;
+      }
+    }
+    
+    // Make sure the target index is valid
+    adjustedTargetIndex = Math.max(0, Math.min(adjustedTargetIndex, columnsCopy.length));
+    
+    console.log(`Adjusted target index: ${adjustedTargetIndex}`);
+    
+    // Insert all moved columns at the target position
+    columnsCopy.splice(adjustedTargetIndex, 0, ...movedColumns);
+    
+    console.log('New column order:', columnsCopy.map(col => col.field).join(', '));
+    
+    // Update the state
+    setSelectedColumns(columnsCopy);
+    
+    // Create deep copies of columns for the update
+    const orderedColumns = columnsCopy.map(col => ({
       ...col,
       hide: false
     }));
     
-    // Notify parent component about the reordering with specific operation type
+    // Notify parent component about the reordering
     onColumnChanged(orderedColumns, 'REORDER_AT_INDEX');
+    
+    // Reset the reordering flag after a delay to allow state updates to complete
+    setTimeout(() => {
+      isReorderingRef.current = false;
+    }, 100);
+  };
+
+  // Function to add columns to a group in the available panel
+  const addToGroup = (groupPath: string[], columnIds: string[] = selectedItems) => {
+    if (columnIds.length === 0 || !groupPath.length) return;
+    
+    // Create a deep copy of available columns
+    const newAvailableColumns = JSON.parse(JSON.stringify(availableColumns));
+    
+    // Update group path for each selected column
+    columnIds.forEach(columnId => {
+      const columnIndex = newAvailableColumns.findIndex(col => col.field === columnId);
+      if (columnIndex !== -1) {
+        newAvailableColumns[columnIndex].groupPath = [...groupPath];
+      }
+    });
+    
+    // Update state
+    setAvailableColumns(newAvailableColumns);
+    setSelectedItems([]);
+    
+    // Expand the group that columns were added to
+    const groupPathString = groupPath.join('.');
+    if (!expandedGroups.has(groupPathString)) {
+      const newExpandedGroups = new Set(expandedGroups);
+      newExpandedGroups.add(groupPathString);
+      setExpandedGroups(newExpandedGroups);
+    }
+  };
+
+  // Function to create a new group in the available panel
+  const createNewGroup = (groupName: string, columnIds: string[] = selectedItems) => {
+    if (!groupName || columnIds.length === 0) return;
+    
+    // Create a deep copy of available columns
+    const newAvailableColumns = JSON.parse(JSON.stringify(availableColumns));
+    
+    // Update group path for each selected column
+    columnIds.forEach(columnId => {
+      const columnIndex = newAvailableColumns.findIndex(col => col.field === columnId);
+      if (columnIndex !== -1) {
+        newAvailableColumns[columnIndex].groupPath = [groupName];
+      }
+    });
+    
+    // Update state
+    setAvailableColumns(newAvailableColumns);
+    setSelectedItems([]);
+    
+    // Expand the new group
+    const newExpandedGroups = new Set(expandedGroups);
+    newExpandedGroups.add(groupName);
+    setExpandedGroups(newExpandedGroups);
   };
 
   // Function to move selected columns up in the selected panel
@@ -262,10 +428,18 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
       newSelectedColumns[index - 1] = temp;
     });
     
+    // Mark that we are reordering
+    isReorderingRef.current = true;
+    
     setSelectedColumns(newSelectedColumns);
     
     // Notify parent component about the reordering
     onColumnChanged(newSelectedColumns, 'REORDERED');
+    
+    // Reset reordering flag after a short delay
+    setTimeout(() => {
+      isReorderingRef.current = false;
+    }, 100);
   };
 
   // Function to move selected columns down in the selected panel
@@ -288,10 +462,18 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
       newSelectedColumns[index + 1] = temp;
     });
     
+    // Mark that we are reordering
+    isReorderingRef.current = true;
+    
     setSelectedColumns(newSelectedColumns);
     
     // Notify parent component about the reordering
     onColumnChanged(newSelectedColumns, 'REORDERED');
+    
+    // Reset reordering flag after a short delay
+    setTimeout(() => {
+      isReorderingRef.current = false;
+    }, 100);
   };
 
   // Function to clear all selected columns
@@ -313,40 +495,44 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     onColumnChanged([], 'REMOVED');
   };
 
-  // Drag handlers
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, column: ExtendedColDef, isAvailable: boolean) => {
-    e.dataTransfer.setData('columnId', column.field);
-    e.dataTransfer.setData('sourcePanel', isAvailable ? 'available' : 'selected');
-    
-    // Set the drag effect
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
   // Function to calculate the drop index based on mouse position
   const calculateDropIndex = (e: React.DragEvent<HTMLDivElement>) => {
     const selectedPanelElement = selectedPanelRef.current;
     if (!selectedPanelElement) return 0;
     
-    // Get the list container that holds the columns
+    // Get container
     const columnsList = selectedPanelElement.querySelector('.columns-list');
     if (!columnsList) return 0;
     
-    // Get all column items
-    const columnItems = columnsList.querySelectorAll('.column-item');
-    if (!columnItems || columnItems.length === 0) return 0;
-    
-    // Get mouse position relative to the container
     const containerRect = columnsList.getBoundingClientRect();
+    
+    // Get all column items
+    const columnItems = Array.from(
+      columnsList.querySelectorAll('.column-item')
+    );
+    if (columnItems.length === 0) return 0;
+    
+    // If we're dragging multiple columns, we need to filter out all selected items
+    const selectedIndices = selectedItems.includes(draggedColumnId || '')
+      ? selectedItems.map(id => selectedColumns.findIndex(col => col.field === id))
+      : draggedColumnId
+        ? [selectedColumns.findIndex(col => col.field === draggedColumnId)]
+        : [];
+    
+    // Mouse position relative to container
     const mouseY = e.clientY - containerRect.top;
     
-    // Loop through each item and check if mouse is above its middle point
+    // Find the index where we should insert
     for (let i = 0; i < columnItems.length; i++) {
-      const itemRect = columnItems[i].getBoundingClientRect();
-      const itemTop = itemRect.top - containerRect.top;
-      const itemHeight = itemRect.height;
-      const itemMiddle = itemTop + (itemHeight / 2);
+      // Skip if this is a selected item being dragged
+      if (selectedIndices.includes(i)) continue;
       
-      if (mouseY < itemMiddle) {
+      const rect = columnItems[i].getBoundingClientRect();
+      const itemTop = rect.top - containerRect.top;
+      const itemHeight = rect.height;
+      const middleY = itemTop + (itemHeight / 2);
+      
+      if (mouseY < middleY) {
         return i;
       }
     }
@@ -355,7 +541,64 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     return columnItems.length;
   };
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, panel: string) => {
+  // Drag handlers for columns
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, column: ExtendedColDef, isAvailable: boolean) => {
+    // Set the column being dragged in state
+    setDraggedColumnId(column.field);
+    setDraggedGroupPath(null);
+    
+    // Check if this column is part of a multi-selection
+    const isMultiSelection = selectedItems.includes(column.field) && selectedItems.length > 1;
+    
+    // Prepare data for drag operation
+    const dragData = {
+      type: 'column',
+      columnId: column.field,
+      sourcePanel: isAvailable ? 'available' : 'selected',
+      isMultiSelection,
+      selectedItems: isMultiSelection ? selectedItems : [column.field]
+    };
+    
+    // Set data for transfer
+    e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+    
+    // Set the drag effect
+    e.dataTransfer.effectAllowed = 'move';
+    
+    // Add a class to the dragged element
+    if (e.currentTarget.classList) {
+      e.currentTarget.classList.add('dragging');
+    }
+  };
+
+  // Drag handler for groups
+  const handleGroupDragStart = (e: React.DragEvent<HTMLDivElement>, groupPath: string) => {
+    e.stopPropagation();
+    
+    // Set the group being dragged in state
+    setDraggedGroupPath(groupPath);
+    setDraggedColumnId(null);
+    
+    // Prepare data for drag operation
+    const dragData = {
+      type: 'group',
+      groupPath: groupPath,
+      sourcePanel: 'available'
+    };
+    
+    // Set data for transfer
+    e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+    
+    // Set the drag effect
+    e.dataTransfer.effectAllowed = 'move';
+    
+    // Add a class to the dragged element
+    if (e.currentTarget.classList) {
+      e.currentTarget.classList.add('dragging');
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, panel: string, groupPath?: string) => {
     e.preventDefault();
     
     // Set the drop effect
@@ -363,6 +606,13 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     
     // Set current drop target panel
     setDropTarget(panel);
+    
+    // If dragging over a group in the available panel, highlight it
+    if (groupPath && panel === 'available') {
+      setGroupDropTarget(groupPath);
+    } else {
+      setGroupDropTarget(null);
+    }
     
     if (panel === 'selected') {
       // Calculate drop index directly based on mouse position
@@ -384,34 +634,109 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     
     setDropTarget(null);
     setDropIndicatorIndex(-1);
+    setGroupDropTarget(null);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>, panel: string) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, panel: string, groupPath?: string) => {
     e.preventDefault();
     
-    const columnId = e.dataTransfer.getData('columnId');
-    const sourcePanel = e.dataTransfer.getData('sourcePanel');
-    
-    // Calculate the final drop index at the time of drop
-    // This ensures we have the most up-to-date position
-    const finalDropIndex = panel === 'selected' ? calculateDropIndex(e) : -1;
-    
-    if (sourcePanel === 'available' && panel === 'selected') {
-      console.log(`Moving column ${columnId} to index ${finalDropIndex}`);
-      // Move from available to selected at the calculated drop index
-      moveToSelected([columnId], finalDropIndex);
-    } else if (sourcePanel === 'selected' && panel === 'available') {
-      // Move from selected to available
-      moveToAvailable([columnId]);
-    } else if (sourcePanel === 'selected' && panel === 'selected') {
-      console.log(`Reordering column ${columnId} to index ${finalDropIndex}`);
-      // Reorder within the selected panel
-      reorderColumn(columnId, finalDropIndex);
+    // Parse the drag data
+    let dragData;
+    try {
+      dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
+    } catch (error) {
+      console.error('Invalid drag data');
+      return;
     }
     
-    // Reset drop indicators
+    // Calculate the final drop index at the time of drop for selected panel
+    const finalDropIndex = panel === 'selected' ? calculateDropIndex(e) : -1;
+    
+    // Handle different drag data types
+    if (dragData.type === 'column') {
+      const { columnId, sourcePanel, isMultiSelection, selectedItems: draggedItems } = dragData;
+      
+      // Handle dropping onto a group in the available panel
+      if (groupPath && panel === 'available') {
+        const pathSegments = groupPath.split('.');
+        addToGroup(pathSegments, draggedItems);
+      } 
+      // Handle standard panel drops
+      else if (sourcePanel === 'available' && panel === 'selected') {
+        // Move from available to selected at the calculated drop index
+        moveToSelected(draggedItems, finalDropIndex);
+      } else if (sourcePanel === 'selected' && panel === 'available') {
+        // Move from selected to available
+        moveToAvailable(draggedItems);
+      } else if (sourcePanel === 'selected' && panel === 'selected') {
+        // Only reorder if actually changing position
+        reorderColumn(columnId, finalDropIndex);
+      }
+    } 
+    // Handle group drops
+    else if (dragData.type === 'group') {
+      const { groupPath: draggedGroup } = dragData;
+      
+      if (panel === 'selected') {
+        // Move all columns from the group to selected panel
+        moveGroupToSelected(draggedGroup, finalDropIndex);
+      }
+    }
+    
+    // Reset drop indicators and dragged state
     setDropTarget(null);
     setDropIndicatorIndex(-1);
+    setDraggedColumnId(null);
+    setDraggedGroupPath(null);
+    setGroupDropTarget(null);
+  };
+
+  // Handle right-click for context menu
+  const handleContextMenu = (e: React.MouseEvent, groupPath?: string) => {
+    // Only show context menu in available panel
+    if (selectedItems.length === 0 || !availableColumns.some(col => selectedItems.includes(col.field))) return;
+    
+    e.preventDefault();
+    
+    // Position the context menu at the mouse coordinates
+    setContextMenuPosition({
+      x: e.clientX,
+      y: e.clientY
+    });
+    
+    // Set target group if right-clicking on a group
+    setContextMenuTargetGroup(groupPath || null);
+  };
+
+  // Close context menu
+  const closeContextMenu = () => {
+    setContextMenuPosition(null);
+    setContextMenuTargetGroup(null);
+  };
+
+  // Handle creating a new group from context menu
+  const handleCreateGroup = () => {
+    // Only create groups in available panel
+    const availableSelectedItems = selectedItems.filter(id => 
+      availableColumns.some(col => col.field === id)
+    );
+    
+    if (availableSelectedItems.length === 0) return;
+    
+    // Prompt for group name
+    const groupName = prompt('Enter name for new group:');
+    if (!groupName) return;
+    
+    if (contextMenuTargetGroup) {
+      // Add to existing group
+      const pathSegments = contextMenuTargetGroup.split('.');
+      addToGroup(pathSegments, availableSelectedItems);
+    } else {
+      // Create new group
+      createNewGroup(groupName, availableSelectedItems);
+    }
+    
+    closeContextMenu();
   };
 
   // Render column item
@@ -419,7 +744,9 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     return (
       <div
         key={column.field}
-        className={`column-item draggable ${selectedItems.includes(column.field) ? 'selected' : ''}`}
+        className={`column-item draggable ${selectedItems.includes(column.field) ? 'selected' : ''} ${column.field === draggedColumnId ? 'dragging' : ''}`}
+        data-column-id={column.field}
+        data-index={index}
         onClick={(e) => handleSelect(
           column.field, 
           e.ctrlKey || e.metaKey, 
@@ -429,6 +756,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
           handleSelect(column.field, false, false);
           isAvailable ? moveToSelected([column.field]) : moveToAvailable([column.field]);
         }}
+        onContextMenu={(e) => isAvailable && handleContextMenu(e)}
         draggable
         onDragStart={(e) => handleDragStart(e, column, isAvailable)}
       >
@@ -450,18 +778,32 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
             const currentPath = [...path, key];
             const pathString = currentPath.join('.');
             const isExpanded = expandedGroups.has(pathString);
+            const isDropTarget = groupDropTarget === pathString;
+            const isDragging = draggedGroupPath === pathString;
+            
+            // Count columns in this group
+            const columnsInGroup = getAllColumnsInGroup(pathString);
+            const columnCount = columnsInGroup.length;
             
             return (
-              <div key={pathString}>
+              <div key={pathString} className="group-container">
                 <div
-                  className="group-header"
+                  className={`group-header ${isDropTarget ? 'group-drop-target' : ''} ${isDragging ? 'dragging' : ''}`}
                   style={{ paddingLeft: `${level * 20}px` }}
-                  onClick={() => toggleGroup(pathString)}
+                  draggable
+                  onDragStart={(e) => handleGroupDragStart(e, pathString)}
+                  onContextMenu={(e) => handleContextMenu(e, pathString)}
+                  onDragOver={(e) => handleDragOver(e, 'available', pathString)}
+                  onDrop={(e) => handleDrop(e, 'available', pathString)}
                 >
-                  <span className="expand-icon">
+                  <span 
+                    className="expand-icon"
+                    onClick={(e) => toggleGroup(e, pathString)}
+                  >
                     {isExpanded ? '−' : '+'}
                   </span>
-                  {key}
+                  <span className="group-name">{key}</span>
+                  <span className="group-count">({columnCount})</span>
                 </div>
                 {isExpanded && renderTreeNode(value, currentPath, level + 1)}
               </div>
@@ -492,6 +834,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
               onDragOver={(e) => handleDragOver(e, 'available')}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, 'available')}
+              onContextMenu={(e) => handleContextMenu(e)}
             >
               <div className="columns-list">
                 {renderTreeNode(availableColumnsTree)}
@@ -505,6 +848,11 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
             >
               Add to Selected &gt;
             </button>
+            {selectedItems.length > 0 && selectedItems.some(id => availableColumns.some(col => col.field === id)) && (
+              <button onClick={handleCreateGroup}>
+                Create Group
+              </button>
+            )}
           </div>
         </div>
         
@@ -529,6 +877,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
                   <div className="drop-indicator"></div>
                 )}
                 
+                {/* Render selected columns without groups */}
                 {selectedColumns.map((column, index) => (
                   <React.Fragment key={column.field}>
                     {renderColumnItem(column, index, false)}
@@ -574,6 +923,41 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Context Menu (only for available panel) */}
+      {contextMenuPosition && (
+        <div 
+          className="context-menu"
+          style={{
+            position: 'fixed',
+            top: contextMenuPosition.y,
+            left: contextMenuPosition.x,
+            zIndex: 1000
+          }}
+        >
+          <div className="context-menu-item" onClick={handleCreateGroup}>
+            {contextMenuTargetGroup ? `Add to ${contextMenuTargetGroup.split('.').pop()}` : 'Create New Group'}
+          </div>
+          <div className="context-menu-item" onClick={closeContextMenu}>
+            Cancel
+          </div>
+        </div>
+      )}
+
+      {/* Overlay to close context menu when clicking outside */}
+      {contextMenuPosition && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 999
+          }}
+          onClick={closeContextMenu}
+        />
+      )}
     </div>
   );
 };
