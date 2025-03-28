@@ -21,6 +21,7 @@ interface SelectedColumnsPanelProps {
   onGroupColumnsChanged: (groupId: string, columnIds: string[]) => void;
   searchQuery: string;
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  onColumnSelectionChange: (event: any) => void;
 }
 
 const SelectedColumnsPanel = ({
@@ -41,7 +42,8 @@ const SelectedColumnsPanel = ({
   onRemoveFromGroup,
   onGroupColumnsChanged,
   searchQuery,
-  setSearchQuery
+  setSearchQuery,
+  onColumnSelectionChange
 }: SelectedColumnsPanelProps) => {
   // State for tracking drag and drop operations
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
@@ -77,6 +79,11 @@ const SelectedColumnsPanel = ({
       setDragOverGroupId(null);
       setDropPosition(null);
       setIsDraggingOverGroup(false);
+      
+      // Clean up styling
+      document.querySelectorAll('.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
     };
 
     document.addEventListener('dragend', handleDragEnd);
@@ -104,6 +111,57 @@ const SelectedColumnsPanel = ({
     const groupedColumnIds = groups.flatMap(g => g.children);
     return columns.filter(col => !groupedColumnIds.includes(col.id));
   };
+
+  // Move a column out of a group
+  const moveColumnOutOfGroup = (columnId: string, groupId: string, targetPosition?: number) => {
+    console.log('Moving column out of group', { columnId, groupId, targetPosition });
+    
+    // 1. Remove the column from the group
+    const updatedGroupIds = getGroupColumnIds(groupId).filter(id => id !== columnId);
+    onGroupColumnsChanged(groupId, updatedGroupIds);  // Changed from handleGroupColumnsChanged to onGroupColumnsChanged
+    
+    // 2. Update the overall column order if a specific position is requested
+    if (targetPosition !== undefined) {
+      // Get the current order
+      const newOrder = [...columns];
+      
+      // Find the column we're moving
+      const columnToMove = newOrder.find(col => col.id === columnId);
+      if (!columnToMove) return;
+      
+      // Get ungrouped columns
+      const ungroupedColumns = getUngroupedColumns();
+      
+      // Remove the moved column from its current position
+      const remainingColumns = newOrder.filter(col => col.id !== columnId);
+      
+      // Determine insert position in the full column list
+      let insertIndex;
+      
+      if (targetPosition >= ungroupedColumns.length) {
+        // Add to the end of ungrouped columns
+        insertIndex = remainingColumns.length;
+      } else {
+        // Find the target ungrouped column's position in the full list
+        const targetColId = ungroupedColumns[targetPosition].id;
+        insertIndex = remainingColumns.findIndex(col => col.id === targetColId);
+        
+        if (insertIndex === -1) {
+          insertIndex = remainingColumns.length;
+        }
+      }
+      
+      // Insert at the calculated position
+      remainingColumns.splice(insertIndex, 0, columnToMove);
+      
+      // Update the grid
+      onColumnSelectionChange({
+        items: remainingColumns.map(node => node.column),
+        operationType: 'REORDER'
+      });
+    }
+  };
+  
 
   // Handle node selection
   const handleNodeClick = (nodeId: string, event: React.MouseEvent) => {
@@ -136,6 +194,31 @@ const SelectedColumnsPanel = ({
     }
   };
 
+  // Render column action buttons for in-group columns
+  const renderColumnActions = (column: SelectedNode, inGroup: boolean, groupId?: string) => {
+    // Only show move actions for columns in groups
+    if (!inGroup || !groupId) return null;
+    
+    const handleMoveOutOfGroup = (e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent selection
+      
+      // Move column out of group
+      moveColumnOutOfGroup(column.id, groupId);
+    };
+    
+    return (
+      <div className="column-actions" onClick={e => e.stopPropagation()}>
+        <button 
+          className="action-button move-out"
+          title="Move out of group"
+          onClick={handleMoveOutOfGroup}
+        >
+          ↗️
+        </button>
+      </div>
+    );
+  };
+
   // Handle drag start for columns and groups
   const handleDragStart = (nodeId: string, isGroup: boolean, event: React.DragEvent, parentGroupId?: string) => {
     event.stopPropagation();
@@ -145,7 +228,7 @@ const SelectedColumnsPanel = ({
       setSelectedIds([nodeId]);
     }
     
-    // Create drag data and store parent group for columns in groups
+    // Create drag data with explicit parent group info for better tracking
     const dragData: DragItem = {
       id: nodeId,
       type: isGroup ? 'group' : 'column',
@@ -156,6 +239,15 @@ const SelectedColumnsPanel = ({
     
     // Store drag data in dataTransfer
     event.dataTransfer.setData('application/json', JSON.stringify(dragData));
+    
+    // Also set basic text for maximum compatibility
+    event.dataTransfer.setData('text/plain', nodeId);
+    
+    // If this is a column in a group, add special data
+    if (!isGroup && parentGroupId) {
+      event.dataTransfer.setData('column-from-group', 'true');
+      event.dataTransfer.setData('source-group-id', parentGroupId);
+    }
     
     // Set drag image
     const ghostElement = document.createElement('div');
@@ -169,6 +261,14 @@ const SelectedColumnsPanel = ({
     } else {
       const column = columns.find(col => col.id === nodeId);
       ghostElement.textContent = column?.name || 'Column';
+      
+      if (parentGroupId) {
+        ghostElement.classList.add('from-group');
+        const group = groups.find(g => g.id === parentGroupId);
+        if (group) {
+          ghostElement.dataset.groupName = group.name;
+        }
+      }
     }
     
     document.body.appendChild(ghostElement);
@@ -245,6 +345,15 @@ const SelectedColumnsPanel = ({
         : columnIndex + 1;
       
       setDropPosition(position);
+      
+      // Clear any previous styling
+      document.querySelectorAll('.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+      
+      // Add indicator for drop target
+      columnElement.classList.add('drag-over');
+      
       onDragOver(event, columnId, position);
     }
   };
@@ -418,6 +527,30 @@ const SelectedColumnsPanel = ({
     event.preventDefault();
     event.stopPropagation();
     
+    // Remove styling
+    document.querySelectorAll('.drag-over').forEach(el => {
+      el.classList.remove('drag-over');
+    });
+    
+    // Check if this is a column from a group using the special data attribute
+    const isFromGroup = event.dataTransfer.types.includes('column-from-group');
+    const sourceGroupId = isFromGroup ? event.dataTransfer.getData('source-group-id') : null;
+    
+    // If this is a column from a group, handle it with our direct method
+    if (isFromGroup && sourceGroupId) {
+      const draggedColumnId = event.dataTransfer.getData('text/plain');
+      
+      // Calculate position for dropping in ungrouped area
+      const ungroupedColumns = getUngroupedColumns();
+      const targetIndex = ungroupedColumns.findIndex(col => col.id === columnId);
+      const dropAfter = getDropPosition(event, columnId);
+      const finalIndex = dropAfter ? targetIndex + 1 : targetIndex;
+      
+      // Use our direct method
+      moveColumnOutOfGroup(draggedColumnId, sourceGroupId, finalIndex);
+      return;
+    }
+    
     // Get drag data from dataTransfer
     let dragData: DragItem | null = null;
     try {
@@ -453,6 +586,18 @@ const SelectedColumnsPanel = ({
     setDragOverGroupId(null);
   };
 
+  // Helper to determine drop position relative to a column
+  const getDropPosition = (event: React.DragEvent, columnId: string): boolean => {
+    const columnElement = nodeRefs.current[columnId];
+    if (!columnElement) return false;
+    
+    const rect = columnElement.getBoundingClientRect();
+    const middleY = rect.top + rect.height / 2;
+    
+    // Return true if dropping after, false if dropping before
+    return event.clientY > middleY;
+  }
+
   // Handle drop on the entire panel
   const handlePanelDrop = (event: React.DragEvent) => {
     event.preventDefault();
@@ -466,6 +611,17 @@ const SelectedColumnsPanel = ({
       }
     } catch (e) {
       console.error('Failed to parse drag data:', e);
+    }
+    
+    // Check for special data
+    const isFromGroup = event.dataTransfer.types.includes('column-from-group');
+    const sourceGroupId = isFromGroup ? event.dataTransfer.getData('source-group-id') : null;
+    
+    // If this is a column from a group, handle it directly
+    if (isFromGroup && sourceGroupId) {
+      const draggedColumnId = event.dataTransfer.getData('text/plain');
+      moveColumnOutOfGroup(draggedColumnId, sourceGroupId);
+      return;
     }
     
     // Fall back to component state if dataTransfer is empty
@@ -495,8 +651,8 @@ const SelectedColumnsPanel = ({
     event.stopPropagation();
     
     if (groupId) {
-      // If double-clicking a column in a group, remove it from the group
-      onRemoveFromGroup(groupId, [nodeId]);
+      // If double-clicking a column in a group, move it out of the group
+      moveColumnOutOfGroup(nodeId, groupId);
     } else {
       // Standard double-click handling
       onDoubleClick(nodeId, 'selected');
@@ -570,6 +726,17 @@ const SelectedColumnsPanel = ({
           });
         }
         break;
+      case 'moveOutOfGroup':
+        if (contextMenu.targetId && contextMenu.targetType === 'column') {
+          const columnId = contextMenu.targetId;
+          const group = groups.find(g => g.children.includes(columnId));
+          
+          if (group) {
+            // Move the column out of the group
+            moveColumnOutOfGroup(columnId, group.id);
+          }
+        }
+        break;
       default:
         if (action.startsWith('addToGroup:')) {
           const groupId = action.split(':')[1];
@@ -621,7 +788,7 @@ const SelectedColumnsPanel = ({
         onClick={(e) => handleNodeClick(column.id, e)}
         onDoubleClick={(e) => handleDoubleClick(e, column.id, groupId)}
         onContextMenu={(e) => handleContextMenu(e, column.id, 'column')}
-        draggable
+        draggable="true"
         onDragStart={(e) => handleDragStart(column.id, false, e, groupId)}
         onDragOver={(e) => inGroup 
           ? handleDragOverGroupColumn(e, column.id, groupId!) 
@@ -634,6 +801,12 @@ const SelectedColumnsPanel = ({
       >
         <span className="column-reorder-handle">≡</span>
         <span className="column-name">{column.name}</span>
+        {renderColumnActions(column, inGroup, groupId)}
+        {inGroup && groupId && (
+          <span className="column-group-indicator" title={`Part of group: ${groups.find(g => g.id === groupId)?.name}`}>
+            🔗
+          </span>
+        )}
       </div>
     );
   };
@@ -655,7 +828,7 @@ const SelectedColumnsPanel = ({
       >
         <div 
           className="group-header"
-          draggable
+          draggable="true"
           onDragStart={(e) => handleDragStart(group.id, true, e)}
         >
           <span className="group-reorder-handle">≡</span>
@@ -795,12 +968,20 @@ const SelectedColumnsPanel = ({
                 
                 {/* Check if column is in a group */}
                 {groups.some(g => g.children.includes(contextMenu.targetId!)) && (
-                  <div 
-                    className="context-menu-item"
-                    onClick={() => handleContextMenuAction('removeFromGroup')}
-                  >
-                    Remove from Group
-                  </div>
+                  <>
+                    <div 
+                      className="context-menu-item"
+                      onClick={() => handleContextMenuAction('removeFromGroup')}
+                    >
+                      Remove from Group
+                    </div>
+                    <div 
+                      className="context-menu-item"
+                      onClick={() => handleContextMenuAction('moveOutOfGroup')}
+                    >
+                      Move Out of Group
+                    </div>
+                  </>
                 )}
               </>
             ) : (

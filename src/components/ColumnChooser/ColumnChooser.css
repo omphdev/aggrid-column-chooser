@@ -554,3 +554,410 @@
   outline: 2px solid #1890ff;
   outline-offset: -2px;
 }
+
+/* Add these CSS rules to ColumnChooser.css */
+
+/* Enhanced styling for dragging from group to ungrouped */
+.group-to-ungrouped-target {
+  background-color: rgba(24, 144, 255, 0.15) !important;
+  border: 2px dashed #1890ff !important;
+  position: relative;
+}
+
+.group-to-ungrouped-target::before {
+  content: 'Moving from group';
+  position: absolute;
+  top: -20px;
+  left: 0;
+  font-size: 10px;
+  background: #1890ff;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 2px;
+  opacity: 0.9;
+}
+
+.drag-ghost.from-group {
+  position: relative;
+  padding-right: 10px;
+}
+
+.drag-ghost.from-group::after {
+  content: attr(data-group-name);
+  font-size: 11px;
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 5px;
+}
+
+/* Improve drop indicators */
+.drop-indicator {
+  height: 3px;
+  background-color: #1890ff;
+  margin: 4px 0;
+  position: relative;
+  border-radius: 3px;
+  animation: glow 1.5s infinite alternate;
+  box-shadow: 0 0 4px rgba(24, 144, 255, 0.5);
+}
+
+@keyframes glow {
+  from { box-shadow: 0 0 2px rgba(24, 144, 255, 0.5); }
+  to { box-shadow: 0 0 8px rgba(24, 144, 255, 0.8); }
+}
+
+/* More visible indicator for ungrouped columns when dragging from group */
+.selected-column:not(.in-group).group-to-ungrouped-target::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  border: 2px dashed #1890ff;
+  pointer-events: none;
+}
+
+/* Add these styles to ColumnChooser.css */
+
+/* Make all draggable items visibly draggable */
+[draggable=true] {
+  cursor: grab;
+}
+
+[draggable=true]:active {
+  cursor: grabbing;
+}
+
+/* Highlight in-group columns differently so they're clear */
+.selected-column.in-group {
+  background-color: #f8f8f8;
+  border-left: 3px solid #d9d9d9;
+  padding-left: 5px;
+  position: relative;
+}
+
+/* Make the column handle more prominent */
+.column-reorder-handle {
+  cursor: grab;
+  display: inline-block;
+  margin-right: 8px;
+  color: #999;
+  font-size: 16px;
+  line-height: 1;
+  user-select: none;
+  transition: color 0.2s ease;
+}
+
+.column-reorder-handle:hover {
+  color: #1890ff;
+}
+
+/* Very clear drop target styling */
+.group-to-ungrouped-target {
+  background-color: rgba(24, 144, 255, 0.15) !important;
+  border: 2px dashed #1890ff !important;
+  position: relative;
+  box-shadow: 0 0 10px rgba(24, 144, 255, 0.3);
+  transform: scale(1.02);
+  transition: all 0.1s ease-in-out;
+  z-index: 10;
+}
+
+.group-to-ungrouped-target::before {
+  content: 'Drop here';
+  position: absolute;
+  top: -20px;
+  left: 0;
+  font-size: 10px;
+  background: #1890ff;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 2px;
+  opacity: 0.9;
+}
+
+/* Drop indicators */
+.drop-indicator {
+  height: 5px;
+  background-color: #1890ff;
+  margin: 4px 0;
+  position: relative;
+  border-radius: 3px;
+  animation: glow 1.5s infinite alternate;
+  box-shadow: 0 0 8px rgba(24, 144, 255, 0.5);
+  z-index: 5;
+}
+
+@keyframes glow {
+  from { box-shadow: 0 0 5px rgba(24, 144, 255, 0.5); }
+  to { box-shadow: 0 0 15px rgba(24, 144, 255, 0.8); }
+}
+
+.drop-indicator::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #1890ff;
+}
+
+/* Drag ghost element styling */
+.drag-ghost {
+  position: absolute;
+  pointer-events: none;
+  background: #e6f7ff;
+  border: 2px solid #1890ff;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 9999;
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.drag-ghost.from-group {
+  background: #fff2e8;
+  border-color: #ff7a45;
+}
+
+.drag-ghost.from-group::after {
+  content: attr(data-group-name);
+  font-size: 11px;
+  background: #ff7a45;
+  color: white;
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 5px;
+}
+
+/* Add these styles to your ColumnChooser.css file */
+
+/* Enhanced column styling */
+.selected-column {
+  position: relative;
+  transition: all 0.15s ease-in-out;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 8px;
+  margin: 3px 0;
+  display: flex;
+  align-items: center;
+}
+
+.selected-column:hover {
+  background-color: #f5f5f5;
+  border-color: #d9d9d9;
+}
+
+/* Make columns in groups visually distinct */
+.selected-column.in-group {
+  background-color: #f0f7ff;
+  border-left: 3px solid #91caff;
+  padding-left: 10px;
+  margin: 4px 0;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.selected-column.in-group:hover {
+  background-color: #e6f4ff;
+  border-left-color: #69b1ff;
+  transform: translateX(2px);
+}
+
+/* Group indicator */
+.column-group-indicator {
+  margin-left: 6px;
+  font-size: 12px;
+  color: #1890ff;
+  opacity: 0.7;
+}
+
+/* Action buttons */
+.column-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  visibility: hidden;
+}
+
+.selected-column:hover .column-actions {
+  visibility: visible;
+}
+
+.action-button {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+}
+
+.action-button:hover {
+  opacity: 1;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.move-out {
+  color: #1890ff;
+}
+
+/* Make drag targets more visible */
+.selected-column.drag-over {
+  background-color: #e6f7ff;
+  border: 2px dashed #1890ff;
+  transform: scale(1.02);
+  box-shadow: 0 0 8px rgba(24, 144, 255, 0.3);
+  z-index: 100;
+}
+
+/* Better drag ghost */
+.drag-ghost {
+  position: absolute;
+  pointer-events: none;
+  background: #e6f7ff;
+  border: 2px solid #1890ff;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 9999;
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.drag-ghost.from-group {
+  background: #fff2e8;
+  border-color: #ff7a45;
+}
+
+.drag-ghost.from-group::after {
+  content: attr(data-group-name);
+  font-size: 11px;
+  background: #ff7a45;
+  color: white;
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 5px;
+}
+
+/* Enhanced tooltip for columns in groups */
+.selected-column.in-group::before {
+  content: 'Drag to move out of group or use the button →';
+  position: absolute;
+  top: -24px;
+  left: 0;
+  font-size: 10px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.selected-column.in-group:hover::before {
+  opacity: 1;
+}
+
+/* Improved visual feedback for drag and drop */
+.drop-indicator {
+  height: 6px;
+  background-color: #1890ff;
+  margin: 0;
+  position: relative;
+  border-radius: 3px;
+  z-index: 1000;
+  box-shadow: 0 0 8px rgba(24, 144, 255, 0.5);
+  animation: glow 1.5s infinite alternate;
+}
+
+@keyframes glow {
+  from { box-shadow: 0 0 4px rgba(24, 144, 255, 0.5); }
+  to { box-shadow: 0 0 12px rgba(24, 144, 255, 0.8); }
+}
+
+.drop-indicator::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #1890ff;
+}
+
+/* Enhanced group styling */
+.selected-group {
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  overflow: visible;
+  transition: all 0.2s ease;
+}
+
+.selected-group:hover {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+}
+
+.group-header {
+  background: #f5f5f5;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 8px 12px;
+  user-select: none;
+  display: flex;
+  align-items: center;
+}
+
+.group-name {
+  font-weight: 600;
+  flex: 1;
+}
+
+.group-columns {
+  padding: 8px;
+  min-height: 40px;
+}
+
+/* Make handles more obvious */
+.column-reorder-handle,
+.group-reorder-handle {
+  cursor: grab;
+  display: inline-block;
+  margin-right: 8px;
+  color: #999;
+  font-size: 16px;
+  line-height: 1;
+  user-select: none;
+  transition: color 0.2s ease;
+}
+
+.column-reorder-handle:hover,
+.group-reorder-handle:hover {
+  color: #1890ff;
+}
+
+/* Empty group message */
+.group-columns:empty::after {
+  content: 'Drag columns here';
+  display: block;
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 10px;
+}
