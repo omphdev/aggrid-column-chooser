@@ -102,20 +102,29 @@
   flex: 1;
   overflow-y: auto;
   position: relative;
+  padding: 2px;
 }
 
+/* Column item styles */
 .column-item {
   padding: 8px 10px;
   cursor: pointer;
   border-radius: 2px;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
   background-color: white;
   border: 1px solid transparent;
   user-select: none;
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+  flex-grow: 0;
 }
 
 .column-item:hover {
-  background-color: #f0f0f0;
+  background-color: #f0f7ff;
+  border-color: #b8d4ff;
 }
 
 .column-item.selected {
@@ -132,9 +141,17 @@
   cursor: grabbing;
 }
 
+.column-item.dragging {
+  opacity: 0.6;
+  background-color: #f8f8f8;
+  border: 1px dashed #aaa;
+}
+
 /* Group styles */
 .group-container {
-  margin-bottom: 2px;
+  margin-bottom: 4px;
+  position: relative;
+  width: 100%;
 }
 
 .group-header {
@@ -148,6 +165,9 @@
   transition: background-color 0.2s;
   background-color: #f5f5f5;
   border: 1px solid transparent;
+  margin-bottom: 4px;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .group-header:hover {
@@ -156,8 +176,26 @@
 }
 
 .group-header.group-drop-target {
-  background-color: rgba(74, 144, 226, 0.2);
-  border: 1px dashed #4a90e2;
+  background-color: rgba(74, 144, 226, 0.3);
+  border: 2px dashed #4a90e2;
+  position: relative;
+  box-shadow: 0 0 8px rgba(74, 144, 226, 0.3);
+  animation: group-pulse 1.5s infinite;
+}
+
+.group-header.group-drop-target::after {
+  content: "Drop to add to group";
+  position: absolute;
+  right: 10px;
+  top: calc(100% + 2px);
+  background-color: #4a90e2;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: normal;
+  z-index: 5;
+  pointer-events: none;
 }
 
 .group-header.dragging {
@@ -204,13 +242,6 @@
   background-color: #f0f7ff;
 }
 
-/* Improved dragging styles */
-.column-item.dragging {
-  opacity: 0.6;
-  background-color: #f8f8f8;
-  border: 1px dashed #aaa;
-}
-
 /* Drop indicator styles */
 .drop-indicator {
   height: 3px;
@@ -222,6 +253,28 @@
   position: relative;
   box-shadow: 0 0 4px rgba(74, 144, 226, 0.5);
   animation: pulse 1.5s infinite;
+  transition: opacity 0.2s ease-in-out;
+  flex-shrink: 0;
+  flex-grow: 0;
+}
+
+/* Drop indicator inside a group */
+.drop-indicator.in-group {
+  margin-left: 20px;
+  width: calc(100% - 20px);
+  background-color: #4a90e2;
+  height: 4px;
+  position: relative;
+}
+
+.drop-indicator.in-group::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  top: 0;
+  height: 100%;
+  width: 20px;
+  background: linear-gradient(90deg, transparent, #4a90e2);
 }
 
 @keyframes pulse {
@@ -233,6 +286,21 @@
   }
   100% {
     box-shadow: 0 0 0 0 rgba(74, 144, 226, 0);
+  }
+}
+
+@keyframes group-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(74, 144, 226, 0.5);
+    border-color: rgba(74, 144, 226, 0.8);
+  }
+  50% {
+    box-shadow: 0 0 8px 0 rgba(74, 144, 226, 0.5);
+    border-color: rgba(74, 144, 226, 1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(74, 144, 226, 0.5);
+    border-color: rgba(74, 144, 226, 0.8);
   }
 }
 
@@ -312,4 +380,117 @@
 .column-item.selected {
   background-color: #e3f2fd;
   border-color: #4a90e2;
+}
+
+/* Group header in selected panel */
+.selected-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  cursor: grab;
+  font-weight: bold;
+  user-select: none;
+  border: 1px solid transparent;
+  transition: background-color 0.2s;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  flex-grow: 0;
+}
+
+.selected-group-header:hover {
+  background-color: #e6f0fa;
+  border-color: #d0e3fa;
+}
+
+.selected-group-header.group-drop-target {
+  background-color: rgba(74, 144, 226, 0.3);
+  border: 2px dashed #4a90e2;
+  position: relative;
+  box-shadow: 0 0 8px rgba(74, 144, 226, 0.3);
+  animation: group-pulse 1.5s infinite;
+}
+
+.selected-group-header.group-drop-target::after {
+  content: "Drop to add to group";
+  position: absolute;
+  right: 10px;
+  top: calc(100% + 2px);
+  background-color: #4a90e2;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: normal;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.selected-group-header.dragging {
+  opacity: 0.6;
+  background-color: #e3f2fd;
+  border: 1px dashed #4a90e2;
+}
+
+/* Column item styles for items in groups */
+.column-item.in-group {
+  margin-left: 20px;
+  margin-right: 0;
+  width: calc(100% - 20px);
+  border-left: 2px solid #e0e0e0;
+  background-color: #fafafa;
+}
+
+.column-item.in-group:hover {
+  border-left-color: #4a90e2;
+  background-color: #f0f7ff;
+}
+
+.column-item.in-group.selected {
+  border-left-color: #4a90e2;
+  background-color: #e3f2fd;
+}
+
+/* Add a highlight to the entire group when it's a drop target */
+.columns-list-container .selected-group-header.group-drop-target + .column-item.in-group,
+.columns-list-container .group-header.group-drop-target ~ .column-item {
+  border-left: 2px solid #4a90e2;
+  background-color: rgba(74, 144, 226, 0.05);
+}
+
+/* Button for creating a group */
+.panel-footer button:last-child {
+  background-color: #4a90e2;
+}
+
+/* Group selection styling */
+.selected-group-header.selected {
+  background-color: #e3f2fd;
+  border-color: #4a90e2;
+}
+
+/* Group drop message */
+.group-drop-message {
+  position: absolute;
+  bottom: -20px;
+  right: 0;
+  background-color: #4a90e2;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: normal;
+  z-index: 5;
+}
+
+/* Group drop hover indication */
+.group-drop-hover {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+  background-color: rgba(74, 144, 226, 0.1);
 }
