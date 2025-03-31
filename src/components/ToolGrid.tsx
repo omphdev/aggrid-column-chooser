@@ -195,8 +195,7 @@ const ToolGrid: React.FC<ToolGridProps> = ({ columnDefs, rowData, configPanelPar
         // Add new group
         updatedGroups.push({
           headerName: replacementName,
-          children: [],
-          columns: []
+          children: []
         });
       }
       

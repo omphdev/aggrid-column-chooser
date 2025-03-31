@@ -437,8 +437,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     // Create a new group
     const newGroup: ColumnGroup = {
       headerName: groupName,
-      children: columnIds,
-      columns: []
+      children: columnIds
     };
     
     // Check if a group with this name already exists
