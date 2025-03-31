@@ -92,12 +92,14 @@ const App: React.FC = () => {
   // Initial column groups
   const [columnGroups, setColumnGroups] = useState<ColumnGroup[]>([
     { headerName: 'Personal Information', children: ['id', 'name', 'age'] },
-    { headerName: 'Contact Details', children: ['email', 'city', 'state'] },
   ]);
 
   // Handle column changes
   const handleColumnChanged = (selectedColumns: ExtendedColDef[], operationType: OperationType) => {
     console.log('Column changed:', operationType, selectedColumns.map(col => col.field).join(', '));
+    
+    // Note: operationType might be one of our standard types like 'ADD', 'REMOVED', 'REORDERED'
+    // We're letting the ToolGrid component handle the actual column ordering now
     
     // For all operations, we only need to update the hide property in our state
     const updatedColumnDefs = columnDefs.map(col => {
@@ -119,32 +121,22 @@ const App: React.FC = () => {
     console.log('Column group changed:', action, headerName, replacementName);
 
     if (action === 'REMOVE') {
-      // Remove the group
       setColumnGroups(prevGroups => prevGroups.filter(group => group.headerName !== headerName));
-    } else if (action === 'UPDATE') {
-      // If this is a rename operation (replacement name provided and different from current)
-      if (replacementName && replacementName !== headerName) {
-        setColumnGroups(prevGroups => {
-          const groupIndex = prevGroups.findIndex(group => group.headerName === headerName);
-          
-          if (groupIndex !== -1) {
-            const newGroups = [...prevGroups];
-            newGroups[groupIndex] = {
-              ...newGroups[groupIndex],
-              headerName: replacementName,
-            };
-            return newGroups;
-          }
-          
-          return prevGroups;
-        });
-      } 
-      // If this is an update to group members (columns changed)
-      else {
-        // The actual column changes are managed inside the ColumnPanel component
-        // We just need to refresh our state to trigger a re-render
-        setColumnGroups(prevGroups => [...prevGroups]);
-      }
+    } else if (action === 'UPDATE' && replacementName) {
+      setColumnGroups(prevGroups => {
+        const groupIndex = prevGroups.findIndex(group => group.headerName === headerName);
+        
+        if (groupIndex !== -1) {
+          const newGroups = [...prevGroups];
+          newGroups[groupIndex] = {
+            ...newGroups[groupIndex],
+            headerName: replacementName,
+          };
+          return newGroups;
+        }
+        
+        return prevGroups;
+      });
     }
   };
 

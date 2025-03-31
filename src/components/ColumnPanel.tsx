@@ -19,7 +19,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
   
   // State for drop indicator
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number>(-1);
-  const [dropIndicatorGroupName, setDropIndicatorGroupName] = useState<string | null>(null);
   
   // State to track which panel is the current drop target
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -29,7 +28,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
   
   // State to track the currently dragged group
   const [draggedGroupPath, setDraggedGroupPath] = useState<string | null>(null);
-  const [draggedSelectedGroup, setDraggedSelectedGroup] = useState<string | null>(null);
   
   // State for group drop target (for when dragging onto a group)
   const [groupDropTarget, setGroupDropTarget] = useState<string | null>(null);
@@ -43,9 +41,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
   
   // Last reordering operation timestamp to prevent duplicates
   const lastReorderTimeRef = useRef<number>(0);
-  
-  // References to track column positions in selected panel
-  const columnPositionsRef = useRef<Map<string, number>>(new Map());
   
   // Refs for the panels
   const availablePanelRef = useRef<HTMLDivElement>(null);
@@ -72,7 +67,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     setExpandedGroups(firstLevelGroups);
   }, [columnDefs]);
 
-  // Function to organize columns into a tree structure for available columns
+  // Function to organize columns into a tree structure
   const organizeColumnsIntoTree = useCallback((columns: ExtendedColDef[]) => {
     const tree: any = {};
     
@@ -98,66 +93,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     return tree;
   }, []);
 
-  // Function to organize selected columns with groups
-  const organizeSelectedColumnsWithGroups = useCallback(() => {
-    // Create a map of column field to column object
-    const columnMap = new Map<string, ExtendedColDef>();
-    selectedColumns.forEach(col => {
-      columnMap.set(col.field, col);
-    });
-    
-    // Initialize result structure with ungrouped columns
-    const result: {
-      ungrouped: ExtendedColDef[];
-      groups: {
-        headerName: string;
-        columns: ExtendedColDef[];
-      }[];
-    } = {
-      ungrouped: [],
-      groups: []
-    };
-    
-    // Create a set to track which columns belong to groups
-    const groupedColumns = new Set<string>();
-    
-    // Find columns that belong to each group
-    columnGroups.forEach(group => {
-      const groupColumns: ExtendedColDef[] = [];
-      
-      // Filter children to only include columns that exist in selected columns
-      group.children.forEach(fieldName => {
-        const column = columnMap.get(fieldName);
-        if (column) {
-          groupColumns.push(column);
-          groupedColumns.add(fieldName);
-        }
-      });
-      
-      // Add group to result if it has columns
-      if (groupColumns.length > 0) {
-        result.groups.push({
-          headerName: group.headerName,
-          // Sort columns based on their original order in the selectedColumns array for consistency
-          columns: groupColumns.sort((a, b) => {
-            const indexA = selectedColumns.findIndex(col => col.field === a.field);
-            const indexB = selectedColumns.findIndex(col => col.field === b.field);
-            return indexA - indexB;
-          }),
-        });
-      }
-    });
-    
-    // Add all non-grouped columns to ungrouped list
-    selectedColumns.forEach(col => {
-      if (!groupedColumns.has(col.field)) {
-        result.ungrouped.push(col);
-      }
-    });
-    
-    return result;
-  }, [selectedColumns, columnGroups]);
-
   // Function to get all columns in a group and its subgroups
   const getAllColumnsInGroup = (groupPath: string) => {
     const pathSegments = groupPath.split('.');
@@ -176,14 +111,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
       
       return true;
     });
-  };
-
-  // Function to get selected columns in a specific group
-  const getGroupColumns = (groupName: string) => {
-    const group = columnGroups.find(g => g.headerName === groupName);
-    if (!group) return [];
-    
-    return selectedColumns.filter(col => group.children.includes(col.field));
   };
 
   // Function to toggle group expansion
@@ -238,33 +165,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     } else {
       // Single selection (regular click)
       newSelectedItems = [columnId];
-    }
-    
-    setSelectedItems(newSelectedItems);
-  };
-
-  // Function to handle selection of a group
-  const handleSelectGroup = (groupName: string, isMultiSelect: boolean) => {
-    // Find all columns in this group
-    const groupColumns = getGroupColumns(groupName);
-    const groupColumnIds = groupColumns.map(col => col.field);
-    
-    let newSelectedItems = [...selectedItems];
-    
-    if (isMultiSelect) {
-      // Toggle all columns in the group
-      const allInGroup = groupColumnIds.every(id => selectedItems.includes(id));
-      
-      if (allInGroup) {
-        // Remove all columns in the group
-        newSelectedItems = newSelectedItems.filter(id => !groupColumnIds.includes(id));
-      } else {
-        // Add all columns in the group
-        newSelectedItems = Array.from(new Set([...newSelectedItems, ...groupColumnIds]));
-      }
-    } else {
-      // Select only columns in this group
-      newSelectedItems = [...groupColumnIds];
     }
     
     setSelectedItems(newSelectedItems);
@@ -355,32 +255,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     
     if (columnsToMove.length === 0) return;
     
-    // Remove columns from any groups they might be in
-    const newColumnGroups = columnGroups.map(group => {
-      return {
-        ...group,
-        children: group.children.filter(field => !columnIds.includes(field))
-      };
-    }).filter(group => group.children.length > 0);
-    
-    // Notify about column group changes if groups were affected
-    if (JSON.stringify(newColumnGroups) !== JSON.stringify(columnGroups)) {
-      // For each affected group, notify the parent
-      columnGroups.forEach(group => {
-        if (!newColumnGroups.some(ng => ng.headerName === group.headerName && 
-            JSON.stringify(ng.children) === JSON.stringify(group.children))) {
-          // Group was modified or removed
-          if (newColumnGroups.some(ng => ng.headerName === group.headerName)) {
-            // Group was modified
-            onColumnGroupChanged(group.headerName, 'UPDATE');
-          } else {
-            // Group was removed
-            onColumnGroupChanged(group.headerName, 'REMOVE');
-          }
-        }
-      });
-    }
-    
     // Remove columns from selected
     const newSelectedColumns = selectedColumns.filter(col => 
       !columnIds.includes(col.field)
@@ -402,103 +276,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     
     // Notify parent component about the updated columns
     onColumnChanged(newSelectedColumns, 'REMOVED');
-  };
-
-  // Function to add columns to a column group
-  const addToColumnGroup = (groupName: string, columnIds: string[] = selectedItems) => {
-    if (columnIds.length === 0 || !groupName) return;
-    
-    // Filter to only selected columns that are in the selected panel
-    const validColumnIds = columnIds.filter(id => 
-      selectedColumns.some(col => col.field === id)
-    );
-    
-    if (validColumnIds.length === 0) return;
-    
-    // Create a copy of the column groups to work with
-    let updatedGroups = [...columnGroups];
-    
-    // Find the target group
-    const groupIndex = updatedGroups.findIndex(g => g.headerName === groupName);
-    
-    // If the group doesn't exist, create it
-    if (groupIndex === -1) {
-      const newGroup: ColumnGroup = {
-        headerName: groupName,
-        children: validColumnIds
-      };
-      
-      // Add the new group
-      updatedGroups = [...updatedGroups, newGroup];
-      
-      // Notify parent about the new group
-      onColumnGroupChanged(groupName, 'UPDATE');
-    } else {
-      // Remove columns from any other groups they might be in
-      updatedGroups.forEach(group => {
-        if (group.headerName !== groupName) {
-          const originalLength = group.children.length;
-          group.children = group.children.filter(field => !validColumnIds.includes(field));
-          
-          // Notify if this group was modified
-          if (group.children.length !== originalLength) {
-            onColumnGroupChanged(group.headerName, 'UPDATE');
-          }
-        }
-      });
-      
-      // Add columns to the target group
-      validColumnIds.forEach(columnId => {
-        if (!updatedGroups[groupIndex].children.includes(columnId)) {
-          updatedGroups[groupIndex].children.push(columnId);
-        }
-      });
-      
-      // Notify parent about the updated group
-      onColumnGroupChanged(groupName, 'UPDATE');
-    }
-    
-    // Filter out any empty groups
-    updatedGroups = updatedGroups.filter(group => group.children.length > 0);
-    
-    // Clear selection
-    setSelectedItems([]);
-  };
-
-  // Function to remove columns from a column group
-  const removeFromColumnGroup = (groupName: string, columnIds: string[] = selectedItems) => {
-    if (columnIds.length === 0 || !groupName) return;
-    
-    // Find the group
-    const groupIndex = columnGroups.findIndex(g => g.headerName === groupName);
-    
-    if (groupIndex === -1) return;
-    
-    // Create updated column groups
-    const updatedGroups = [...columnGroups];
-    
-    // Remove the specified columns from the group
-    const originalChildren = [...updatedGroups[groupIndex].children];
-    updatedGroups[groupIndex].children = updatedGroups[groupIndex].children.filter(
-      field => !columnIds.includes(field)
-    );
-    
-    // Check if group is now empty
-    if (updatedGroups[groupIndex].children.length === 0) {
-      // Remove the empty group
-      updatedGroups.splice(groupIndex, 1);
-      onColumnGroupChanged(groupName, 'REMOVE');
-    } else if (JSON.stringify(originalChildren) !== JSON.stringify(updatedGroups[groupIndex].children)) {
-      // Notify parent about the updated group if it was changed
-      onColumnGroupChanged(groupName, 'UPDATE');
-    }
-    
-    // Clear selection
-    setSelectedItems([]);
-    
-    // Reset drop indicators to prevent visual artifacts
-    setDropIndicatorIndex(-1);
-    setDropIndicatorGroupName(null);
   };
 
   // Function to reorder a column within the selected panel
@@ -578,69 +355,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     }, 100);
   };
 
-  // Function to reorder an entire column group
-  const reorderColumnGroup = (groupName: string, targetIndex: number) => {
-    // Find the group
-    const group = columnGroups.find(g => g.headerName === groupName);
-    if (!group) return;
-    
-    // Get all columns in this group
-    const groupColumnsFields = group.children;
-    
-    // Find the indices of all columns in the group
-    const firstColumnIndex = selectedColumns.findIndex(col => col.field === groupColumnsFields[0]);
-    if (firstColumnIndex === -1) return;
-    
-    // Calculate group span (how many consecutive columns are in the group)
-    let groupSpan = 0;
-    for (let i = 0; i < groupColumnsFields.length; i++) {
-      if (i + firstColumnIndex < selectedColumns.length && 
-          selectedColumns[i + firstColumnIndex].field === groupColumnsFields[i]) {
-        groupSpan++;
-      } else {
-        break;
-      }
-    }
-    
-    // If group is not consecutive in the selected columns, abort
-    if (groupSpan !== groupColumnsFields.length) {
-      console.warn('Group columns are not consecutive in the selected columns list');
-      return;
-    }
-    
-    // Create a copy of selectedColumns
-    const columnsCopy = [...selectedColumns];
-    
-    // Remove the group columns
-    const removedColumns = columnsCopy.splice(firstColumnIndex, groupSpan);
-    
-    // Adjust the target index
-    let adjustedTargetIndex = targetIndex;
-    if (targetIndex > firstColumnIndex) {
-      adjustedTargetIndex -= groupSpan;
-    }
-    
-    // Make sure the target index is valid
-    adjustedTargetIndex = Math.max(0, Math.min(adjustedTargetIndex, columnsCopy.length));
-    
-    // Insert the group columns at the new position
-    columnsCopy.splice(adjustedTargetIndex, 0, ...removedColumns);
-    
-    // Mark that we are reordering
-    isReorderingRef.current = true;
-    
-    // Update the state
-    setSelectedColumns(columnsCopy);
-    
-    // Notify parent component about the reordering
-    onColumnChanged(columnsCopy, 'REORDER_AT_INDEX');
-    
-    // Reset the reordering flag after a delay
-    setTimeout(() => {
-      isReorderingRef.current = false;
-    }, 100);
-  };
-
   // Function to add columns to a group in the available panel
   const addToGroup = (groupPath: string[], columnIds: string[] = selectedItems) => {
     if (columnIds.length === 0 || !groupPath.length) return;
@@ -692,63 +406,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     const newExpandedGroups = new Set(expandedGroups);
     newExpandedGroups.add(groupName);
     setExpandedGroups(newExpandedGroups);
-  };
-
-  // Function to create a new column group in the selected panel
-  const createNewColumnGroup = () => {
-    if (selectedItems.length === 0) return;
-    
-    // Filter to only include columns that are in the selected panel
-    const validColumnIds = selectedItems.filter(id => 
-      selectedColumns.some(col => col.field === id)
-    );
-    
-    if (validColumnIds.length === 0) return;
-    
-    // Prompt for group name
-    const groupName = prompt('Enter name for new group:');
-    if (!groupName) return;
-    
-    // Check if group name already exists
-    if (columnGroups.some(g => g.headerName === groupName)) {
-      alert('A group with that name already exists. Please choose a different name.');
-      return;
-    }
-    
-    // Create the new group
-    const newGroup: ColumnGroup = {
-      headerName: groupName,
-      children: validColumnIds
-    };
-    
-    // Remove columns from any other groups they might be in
-    const updatedGroups = columnGroups.map(group => {
-      return {
-        ...group,
-        children: group.children.filter(field => !validColumnIds.includes(field))
-      };
-    }).filter(group => group.children.length > 0);
-    
-    // Add the new group
-    updatedGroups.push(newGroup);
-    
-    // Notify parent about each modified group
-    columnGroups.forEach(group => {
-      const updatedGroup = updatedGroups.find(g => g.headerName === group.headerName);
-      if (!updatedGroup) {
-        // Group was removed
-        onColumnGroupChanged(group.headerName, 'REMOVE');
-      } else if (JSON.stringify(updatedGroup.children) !== JSON.stringify(group.children)) {
-        // Group was modified
-        onColumnGroupChanged(group.headerName, 'UPDATE');
-      }
-    });
-    
-    // Notify about the new group
-    onColumnGroupChanged(groupName, 'UPDATE');
-    
-    // Clear selection
-    setSelectedItems([]);
   };
 
   // Function to move selected columns up in the selected panel
@@ -836,11 +493,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     
     // Notify parent component that all columns were removed
     onColumnChanged([], 'REMOVED');
-    
-    // Clear all column groups
-    columnGroups.forEach(group => {
-      onColumnGroupChanged(group.headerName, 'REMOVE');
-    });
   };
 
   // Function to calculate the drop index based on mouse position
@@ -854,50 +506,28 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     
     const containerRect = columnsList.getBoundingClientRect();
     
-    // Get all column items and group headers
-    const items = Array.from(
-      columnsList.querySelectorAll('.column-item, .selected-group-header')
+    // Get all column items
+    const columnItems = Array.from(
+      columnsList.querySelectorAll('.column-item')
     );
-    if (items.length === 0) return 0;
+    if (columnItems.length === 0) return 0;
     
     // If we're dragging multiple columns, we need to filter out all selected items
     const selectedIndices = selectedItems.includes(draggedColumnId || '')
-      ? selectedItems.map(id => {
-          const itemEl = items.find(el => el.getAttribute('data-column-id') === id);
-          return itemEl ? items.indexOf(itemEl) : -1;
-        }).filter(idx => idx !== -1)
+      ? selectedItems.map(id => selectedColumns.findIndex(col => col.field === id))
       : draggedColumnId
-        ? [items.findIndex(el => el.getAttribute('data-column-id') === draggedColumnId)]
+        ? [selectedColumns.findIndex(col => col.field === draggedColumnId)]
         : [];
-    
-    // If we're dragging a group, find all its items
-    let groupItemIndices: number[] = [];
-    if (draggedSelectedGroup) {
-      // Get all columns in the dragged group
-      const group = columnGroups.find(g => g.headerName === draggedSelectedGroup);
-      if (group) {
-        groupItemIndices = items
-          .map((el, idx) => {
-            const columnId = el.getAttribute('data-column-id');
-            const groupName = el.getAttribute('data-group-name');
-            return (groupName === draggedSelectedGroup || (columnId && group.children.includes(columnId))) ? idx : -1;
-          })
-          .filter(idx => idx !== -1);
-      }
-    }
-    
-    // Combine indices to skip
-    const indicesToSkip = [...selectedIndices, ...groupItemIndices];
     
     // Mouse position relative to container
     const mouseY = e.clientY - containerRect.top;
     
     // Find the index where we should insert
-    for (let i = 0; i < items.length; i++) {
+    for (let i = 0; i < columnItems.length; i++) {
       // Skip if this is a selected item being dragged
-      if (indicesToSkip.includes(i)) continue;
+      if (selectedIndices.includes(i)) continue;
       
-      const rect = items[i].getBoundingClientRect();
+      const rect = columnItems[i].getBoundingClientRect();
       const itemTop = rect.top - containerRect.top;
       const itemHeight = rect.height;
       const middleY = itemTop + (itemHeight / 2);
@@ -908,15 +538,14 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     }
     
     // If mouse is below all items, drop at the end
-    return items.length;
+    return columnItems.length;
   };
 
   // Drag handlers for columns
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, column: ExtendedColDef, isAvailable: boolean, groupName?: string) => {
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, column: ExtendedColDef, isAvailable: boolean) => {
     // Set the column being dragged in state
     setDraggedColumnId(column.field);
     setDraggedGroupPath(null);
-    setDraggedSelectedGroup(null);
     
     // Check if this column is part of a multi-selection
     const isMultiSelection = selectedItems.includes(column.field) && selectedItems.length > 1;
@@ -927,8 +556,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
       columnId: column.field,
       sourcePanel: isAvailable ? 'available' : 'selected',
       isMultiSelection,
-      selectedItems: isMultiSelection ? selectedItems : [column.field],
-      groupName
+      selectedItems: isMultiSelection ? selectedItems : [column.field]
     };
     
     // Set data for transfer
@@ -950,7 +578,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     // Set the group being dragged in state
     setDraggedGroupPath(groupPath);
     setDraggedColumnId(null);
-    setDraggedSelectedGroup(null);
     
     // Prepare data for drag operation
     const dragData = {
@@ -971,46 +598,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     }
   };
 
-  // Update group drop handlers
-  const handleSelectedGroupDragStart = (e: React.DragEvent<HTMLDivElement>, groupName: string) => {
-    e.stopPropagation();
-    
-    // Set the group being dragged in state
-    setDraggedSelectedGroup(groupName);
-    setDraggedColumnId(null);
-    setDraggedGroupPath(null);
-    
-    // Prepare data for drag operation
-    const dragData = {
-      type: 'selectedGroup',
-      groupName: groupName,
-      sourcePanel: 'selected'
-    };
-    
-    // Set data for transfer
-    e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
-    
-    // Set the drag effect
-    e.dataTransfer.effectAllowed = 'move';
-    
-    // Add a class to the dragged element
-    if (e.currentTarget.classList) {
-      e.currentTarget.classList.add('dragging');
-    }
-  };
-  
-  // Add dragEnd handler for groups
-  const handleGroupDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-    resetDropState();
-  };
-
-  // Handle any drag end (successful or canceled)
-  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-    // Reset all drop state regardless of whether the drop was successful
-    resetDropState();
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, panel: string, groupPath?: string, groupName?: string) => {
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, panel: string, groupPath?: string) => {
     e.preventDefault();
     
     // Set the drop effect
@@ -1019,9 +607,9 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     // Set current drop target panel
     setDropTarget(panel);
     
-    // If dragging over a group, highlight it
-    if ((groupPath && panel === 'available') || (groupName && panel === 'selected')) {
-      setGroupDropTarget(groupPath || groupName || null);
+    // If dragging over a group in the available panel, highlight it
+    if (groupPath && panel === 'available') {
+      setGroupDropTarget(groupPath);
     } else {
       setGroupDropTarget(null);
     }
@@ -1035,9 +623,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
       if (index !== dropIndicatorIndex) {
         setDropIndicatorIndex(index);
       }
-      
-      // Store the group where the indicator should appear (or null if not in a group)
-      setDropIndicatorGroupName(groupName || null);
     }
   };
 
@@ -1050,10 +635,9 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     setDropTarget(null);
     setDropIndicatorIndex(-1);
     setGroupDropTarget(null);
-    setDropIndicatorGroupName(null);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>, panel: string, groupPath?: string, groupName?: string) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, panel: string, groupPath?: string) => {
     e.preventDefault();
     
     // Parse the drag data
@@ -1062,7 +646,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
       dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
     } catch (error) {
       console.error('Invalid drag data');
-      resetDropState();
       return;
     }
     
@@ -1071,31 +654,13 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     
     // Handle different drag data types
     if (dragData.type === 'column') {
-      const { columnId, sourcePanel, isMultiSelection, selectedItems: draggedItems, groupName: sourceGroupName } = dragData;
+      const { columnId, sourcePanel, isMultiSelection, selectedItems: draggedItems } = dragData;
       
       // Handle dropping onto a group in the available panel
       if (groupPath && panel === 'available') {
         const pathSegments = groupPath.split('.');
         addToGroup(pathSegments, draggedItems);
       } 
-      // Handle dropping onto a group in the selected panel
-      else if (groupName && panel === 'selected') {
-        // Move columns to the target group
-        addToColumnGroup(groupName, draggedItems);
-        
-        // Update grid
-        onColumnChanged(selectedColumns, 'REORDERED');
-      }
-      // Handle dropping out of a group in the selected panel
-      else if (sourceGroupName && panel === 'selected' && !groupName) {
-        // Remove columns from their group
-        removeFromColumnGroup(sourceGroupName, draggedItems);
-        
-        // Move to specific position if needed (reordering)
-        if (finalDropIndex >= 0) {
-          reorderColumn(columnId, finalDropIndex);
-        }
-      }
       // Handle standard panel drops
       else if (sourcePanel === 'available' && panel === 'selected') {
         // Move from available to selected at the calculated drop index
@@ -1104,12 +669,8 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
         // Move from selected to available
         moveToAvailable(draggedItems);
       } else if (sourcePanel === 'selected' && panel === 'selected') {
-        // Only reorder if actually changing position and
-        // if we're not moving a column to the same place
-        const existingIndex = selectedColumns.findIndex(col => col.field === columnId);
-        if (existingIndex !== finalDropIndex && existingIndex !== finalDropIndex - 1) {
-          reorderColumn(columnId, finalDropIndex);
-        }
+        // Only reorder if actually changing position
+        reorderColumn(columnId, finalDropIndex);
       }
     } 
     // Handle group drops
@@ -1121,33 +682,13 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
         moveGroupToSelected(draggedGroup, finalDropIndex);
       }
     }
-    // Handle selected group drops (reordering entire groups)
-    else if (dragData.type === 'selectedGroup') {
-      const { groupName: draggedGroupName } = dragData;
-      
-      if (panel === 'selected') {
-        // Reorder the entire group
-        reorderColumnGroup(draggedGroupName, finalDropIndex);
-      }
-    }
     
-    // Reset all drop state
-    resetDropState();
-  };
-  
-  // Function to reset all drop-related state
-  const resetDropState = () => {
+    // Reset drop indicators and dragged state
     setDropTarget(null);
     setDropIndicatorIndex(-1);
     setDraggedColumnId(null);
     setDraggedGroupPath(null);
-    setDraggedSelectedGroup(null);
     setGroupDropTarget(null);
-    setDropIndicatorGroupName(null);
-    
-    // Remove any dragging classes from elements
-    const draggingElements = document.querySelectorAll('.dragging');
-    draggingElements.forEach(el => el.classList.remove('dragging'));
   };
 
   // Handle right-click for context menu
@@ -1199,14 +740,12 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
   };
 
   // Render column item
-  const renderColumnItem = (column: ExtendedColDef, index: number, isAvailable: boolean, groupName?: string) => {
+  const renderColumnItem = (column: ExtendedColDef, index: number, isAvailable: boolean) => {
     return (
       <div
         key={column.field}
-        className={`column-item draggable ${selectedItems.includes(column.field) ? 'selected' : ''} ${column.field === draggedColumnId ? 'dragging' : ''} ${groupName ? 'in-group' : ''}`}
-        style={groupName ? { marginLeft: '20px' } : {}}
+        className={`column-item draggable ${selectedItems.includes(column.field) ? 'selected' : ''} ${column.field === draggedColumnId ? 'dragging' : ''}`}
         data-column-id={column.field}
-        data-group-name={groupName}
         data-index={index}
         onClick={(e) => handleSelect(
           column.field, 
@@ -1219,10 +758,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
         }}
         onContextMenu={(e) => isAvailable && handleContextMenu(e)}
         draggable
-        onDragStart={(e) => handleDragStart(e, column, isAvailable, groupName)}
-        onDragEnd={handleDragEnd}
-        onDragOver={(e) => handleDragOver(e, isAvailable ? 'available' : 'selected', undefined, groupName)}
-        onDrop={(e) => handleDrop(e, isAvailable ? 'available' : 'selected', undefined, groupName)}
+        onDragStart={(e) => handleDragStart(e, column, isAvailable)}
       >
         {column.headerName || column.field}
       </div>
@@ -1277,124 +813,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
       </>
     );
   };
-
-  // Function to render selected columns with groups
-// Function to render selected columns with groups - completely rewritten
-const renderSelectedColumnsWithGroups = () => {
-  // Only calculate and show drop indicators during active drag operations
-  const showDropIndicators = draggedColumnId !== null || draggedGroupPath !== null || draggedSelectedGroup !== null;
-  
-  // Organize columns into groups and ungrouped
-  const { ungrouped, groups } = organizeSelectedColumnsWithGroups();
-  
-  // Create a Map to track the rendered column to prevent duplicates
-  const renderedColumns = new Map<string, boolean>();
-  
-  return (
-    <>
-      {/* Render ungrouped columns */}
-      {ungrouped.map((column, index) => {
-        if (renderedColumns.has(column.field)) return null;
-        renderedColumns.set(column.field, true);
-        
-        return (
-          <React.Fragment key={`ungrouped-${column.field}`}>
-            {showDropIndicators && dropIndicatorIndex === index && dropIndicatorGroupName === null && (
-              <div className="drop-indicator"></div>
-            )}
-            {renderColumnItem(column, index, false)}
-          </React.Fragment>
-        );
-      })}
-      
-      {/* Render the final drop indicator for ungrouped columns if needed */}
-      {showDropIndicators && dropIndicatorIndex === ungrouped.length && dropIndicatorGroupName === null && (
-        <div className="drop-indicator"></div>
-      )}
-      
-      {/* Render groups with their columns */}
-      {groups.map((group, groupIndex) => {
-        // Calculate global index for this group (after all ungrouped columns)
-        const groupHeaderIndex = ungrouped.length + groupIndex;
-        
-        // Filter out columns that have already been rendered
-        const visibleGroupColumns = group.columns.filter(col => !renderedColumns.has(col.field));
-        if (visibleGroupColumns.length === 0) return null;
-        
-        // Mark these columns as rendered
-        visibleGroupColumns.forEach(col => renderedColumns.set(col.field, true));
-        
-        const isGroupDropTarget = groupDropTarget === group.headerName;
-        const isGroupDragging = draggedSelectedGroup === group.headerName;
-        
-        return (
-          <React.Fragment key={`group-${group.headerName}`}>
-            {/* Drop indicator before group if needed */}
-            {showDropIndicators && dropIndicatorIndex === groupHeaderIndex && dropIndicatorGroupName === null && (
-              <div className="drop-indicator"></div>
-            )}
-            
-            {/* Group header */}
-            <div 
-              className={`selected-group-header ${isGroupDropTarget ? 'group-drop-target' : ''} ${isGroupDragging ? 'dragging' : ''}`}
-              data-group-name={group.headerName}
-              draggable
-              onDragStart={(e) => handleSelectedGroupDragStart(e, group.headerName)}
-              onDragEnd={handleGroupDragEnd}
-              onDragOver={(e) => handleDragOver(e, 'selected', undefined, group.headerName)}
-              onDrop={(e) => handleDrop(e, 'selected', undefined, group.headerName)}
-              onClick={(e) => handleSelectGroup(group.headerName, e.ctrlKey || e.metaKey)}
-            >
-              <span className="group-name">{group.headerName}</span>
-              <span className="group-count">({visibleGroupColumns.length})</span>
-            </div>
-            
-            {/* Drop indicator inside group if needed */}
-            {showDropIndicators && dropIndicatorIndex === groupHeaderIndex && dropIndicatorGroupName === group.headerName && (
-              <div className="drop-indicator in-group"></div>
-            )}
-            
-            {/* Group columns */}
-            {visibleGroupColumns.map((column, colIndex) => {
-              // Calculate global index for this column
-              const columnIndex = groupHeaderIndex + 1 + colIndex;
-              
-              return (
-                <React.Fragment key={`group-${group.headerName}-column-${column.field}`}>
-                  {/* Drop indicator before column if needed */}
-                  {showDropIndicators && dropIndicatorIndex === columnIndex && 
-                    (dropIndicatorGroupName === group.headerName || dropIndicatorGroupName === null) && (
-                    <div 
-                      className={`drop-indicator ${dropIndicatorGroupName === group.headerName ? 'in-group' : ''}`}
-                      style={dropIndicatorGroupName === group.headerName ? { marginLeft: '20px' } : {}}
-                    ></div>
-                  )}
-                  
-                  {/* Column item */}
-                  {renderColumnItem(column, columnIndex, false, group.headerName)}
-                </React.Fragment>
-              );
-            })}
-            
-            {/* Drop indicator after the last column in group if needed */}
-            {showDropIndicators && dropIndicatorIndex === groupHeaderIndex + 1 + visibleGroupColumns.length && 
-              (dropIndicatorGroupName === group.headerName || dropIndicatorGroupName === null) && (
-              <div 
-                className={`drop-indicator ${dropIndicatorGroupName === group.headerName ? 'in-group' : ''}`}
-                style={dropIndicatorGroupName === group.headerName ? { marginLeft: '20px' } : {}}
-              ></div>
-            )}
-          </React.Fragment>
-        );
-      })}
-      
-      {/* If the list is empty, show a drop indicator */}
-      {ungrouped.length === 0 && groups.length === 0 && showDropIndicators && dropIndicatorIndex === 0 && (
-        <div className="drop-indicator"></div>
-      )}
-    </>
-  );
-};
 
   // Organize available columns into a tree structure
   const availableColumnsTree = organizeColumnsIntoTree(availableColumns);
@@ -1454,7 +872,26 @@ const renderSelectedColumnsWithGroups = () => {
               onDrop={(e) => handleDrop(e, 'selected')}
             >
               <div className="columns-list">
-                {renderSelectedColumnsWithGroups()}
+                {/* Drop indicator at the top */}
+                {dropIndicatorIndex === 0 && (
+                  <div className="drop-indicator"></div>
+                )}
+                
+                {/* Render selected columns without groups */}
+                {selectedColumns.map((column, index) => (
+                  <React.Fragment key={column.field}>
+                    {renderColumnItem(column, index, false)}
+                    {/* Drop indicator after this item */}
+                    {dropIndicatorIndex === index + 1 && (
+                      <div className="drop-indicator"></div>
+                    )}
+                  </React.Fragment>
+                ))}
+                
+                {/* If list is empty, show drop indicator in empty state */}
+                {selectedColumns.length === 0 && dropIndicatorIndex === 0 && (
+                  <div className="drop-indicator"></div>
+                )}
               </div>
             </div>
           </div>
@@ -1482,12 +919,6 @@ const renderSelectedColumnsWithGroups = () => {
               disabled={selectedColumns.length === 0}
             >
               Clear All
-            </button>
-            <button
-              onClick={createNewColumnGroup}
-              disabled={selectedItems.length === 0 || !selectedItems.some(id => selectedColumns.some(col => col.field === id))}
-            >
-              Create Group
             </button>
           </div>
         </div>
