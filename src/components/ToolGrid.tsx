@@ -5,7 +5,6 @@ import ConfigurationPanel from './ConfigurationPanel';
 import ColumnGroupUtils from './ColumnGroupUtils';
 import './styles.css';
 
-
 // Extend MainGrid props type with getGridApi
 interface ExtendedMainGridProps {
   columnDefs: ExtendedColDef[];
@@ -171,48 +170,47 @@ const ToolGrid: React.FC<ToolGridProps> = ({ columnDefs, rowData, configPanelPar
   };
 
   // Handle column group changes
-// Handle column group changes
-const handleColumnGroupChanged = (headerName: string, action: ColumnGroupAction, replacementName?: string) => {
-  if (action === 'REMOVE') {
-    // Remove the group
-    const updatedGroups = localColumnGroups.filter(group => group.headerName !== headerName);
-    setLocalColumnGroups(updatedGroups);
-    
-    // Re-order columns without this group
-    const reorderedColumns = ColumnGroupUtils.getOrderedColumnsFromGroups(activeColumnDefs, updatedGroups);
-    safelyUpdateColumns(reorderedColumns, 'REORDERED');
-  } 
-  else if (action === 'UPDATE' && replacementName) {
-    // Update the group
-    const updatedGroups = [...localColumnGroups];
-    const groupIndex = updatedGroups.findIndex(group => group.headerName === headerName);
-    
-    if (groupIndex !== -1) {
-      // Update existing group
-      updatedGroups[groupIndex] = {
-        ...updatedGroups[groupIndex],
-        headerName: replacementName
-      };
-    } else {
-      // Add new group
-      updatedGroups.push({
-        headerName: replacementName,
-        children: []
-      });
+  const handleColumnGroupChanged = (headerName: string, action: ColumnGroupAction, replacementName?: string) => {
+    if (action === 'REMOVE') {
+      // Remove the group
+      const updatedGroups = localColumnGroups.filter(group => group.headerName !== headerName);
+      setLocalColumnGroups(updatedGroups);
+      
+      // Re-order columns without this group
+      const reorderedColumns = ColumnGroupUtils.getOrderedColumnsFromGroups(activeColumnDefs, updatedGroups);
+      safelyUpdateColumns(reorderedColumns, 'REORDERED');
+    } 
+    else if (action === 'UPDATE' && replacementName) {
+      // Update the group
+      const updatedGroups = [...localColumnGroups];
+      const groupIndex = updatedGroups.findIndex(group => group.headerName === headerName);
+      
+      if (groupIndex !== -1) {
+        // Update existing group
+        updatedGroups[groupIndex] = {
+          ...updatedGroups[groupIndex],
+          headerName: replacementName
+        };
+      } else {
+        // Add new group
+        updatedGroups.push({
+          headerName: replacementName,
+          children: []
+        });
+      }
+      
+      setLocalColumnGroups(updatedGroups);
+      
+      // Re-order columns with the updated group
+      const reorderedColumns = ColumnGroupUtils.getOrderedColumnsFromGroups(activeColumnDefs, updatedGroups);
+      safelyUpdateColumns(reorderedColumns, 'REORDERED');
     }
     
-    setLocalColumnGroups(updatedGroups);
-    
-    // Re-order columns with the updated group
-    const reorderedColumns = ColumnGroupUtils.getOrderedColumnsFromGroups(activeColumnDefs, updatedGroups);
-    safelyUpdateColumns(reorderedColumns, 'REORDERED');
-  }
-  
-  // Pass the change to the parent component
-  if (configPanelParams?.configPanel?.onColumnGroupChanged) {
-    configPanelParams.configPanel.onColumnGroupChanged(headerName, action, replacementName);
-  }
-};
+    // Pass the change to the parent component
+    if (configPanelParams?.configPanel?.onColumnGroupChanged) {
+      configPanelParams.configPanel.onColumnGroupChanged(headerName, action, replacementName);
+    }
+  };
 
   return (
     <div className="tool-grid-container">

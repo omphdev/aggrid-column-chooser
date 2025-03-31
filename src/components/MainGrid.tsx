@@ -21,6 +21,11 @@ const MainGrid: React.FC<ExtendedMainGridProps> = ({ columnDefs, rowData, getGri
     if (getGridApi) {
       getGridApi(params);
     }
+    
+    // Apply initial column order
+    if (gridRef.current && gridRef.current.columnApi) {
+      enforceColumnOrder();
+    }
   };
 
   // Function to ensure column order
@@ -32,6 +37,8 @@ const MainGrid: React.FC<ExtendedMainGridProps> = ({ columnDefs, rowData, getGri
       colId: col.field,
       hide: false
     }));
+    
+    console.log('Enforcing column order in grid:', columnDefs.map(col => col.field).join(', '));
     
     gridRef.current.columnApi.applyColumnState({
       state: columnState,
@@ -47,16 +54,20 @@ const MainGrid: React.FC<ExtendedMainGridProps> = ({ columnDefs, rowData, getGri
     if (isUpdatingColumnsRef.current) return;
     isUpdatingColumnsRef.current = true;
 
+    console.log('Setting columnDefs in MainGrid:', columnDefs.map(col => col.field).join(', '));
+    
     // Update the column definitions
-    gridRef.current.api.setColumnDefs(columnDefs);
+    gridRef.current.api.setColumnDefs([...columnDefs]);
     
-    // Force the column order to match exactly what was provided
-    enforceColumnOrder();
-    
-    // Reset the updating flag after a short delay
+    // IMPORTANT: Wait for the next render cycle before enforcing the column order
     setTimeout(() => {
-      isUpdatingColumnsRef.current = false;
-    }, 100);
+      enforceColumnOrder();
+      
+      // Reset the updating flag after a short delay
+      setTimeout(() => {
+        isUpdatingColumnsRef.current = false;
+      }, 100);
+    }, 0);
   }, [columnDefs, enforceColumnOrder]);
 
   // Listen for column moves and reset if needed
@@ -90,9 +101,9 @@ const MainGrid: React.FC<ExtendedMainGridProps> = ({ columnDefs, rowData, getGri
         maintainColumnOrder={true}
         suppressColumnVirtualisation={true}
         suppressMovableColumns={false}
-        columnHoverHighlight={false} // Disable hover effect to prevent unintended interactions
-        enableCellTextSelection={true} // Enable text selection to reduce accidental drag-drop
-        suppressRowDrag={true} // Disable row drag to avoid confusion with column drag
+        columnHoverHighlight={false}
+        enableCellTextSelection={true}
+        suppressRowDrag={true}
       />
     </div>
   );

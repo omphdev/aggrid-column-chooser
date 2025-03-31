@@ -169,11 +169,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Handler for updating the column groups (can be called by child components)
-  const updateColumnGroups = (newGroups: ColumnGroup[]) => {
-    setColumnGroups(newGroups);
-  };
-
   // Sample data for the grid
   const rowData = [
     { id: 1, name: 'John Doe', age: 30, email: 'john@example.com', phone: '123-456-7890', address: '123 Main St', city: 'New York', state: 'NY', zip: '10001', country: 'USA', salary: 100000, department: 'Engineering', position: 'Developer', startDate: '2020-01-01' },
@@ -196,6 +191,7 @@ const App: React.FC = () => {
           <li>Drag and drop entire groups to reorder them</li>
           <li>Add or remove columns from groups</li>
           <li>Expand/collapse groups</li>
+          <li>Reorder columns within groups by dragging them</li>
         </ul>
       </div>
       <ToolGrid

@@ -119,6 +119,16 @@
   border-left: 3px solid #4a90e2;
 }
 
+.column-item.indented:hover {
+  background-color: #edf5fd;
+}
+
+.column-item.indented.selected {
+  background-color: #e3f2fd;
+  border-color: #4a90e2;
+  border-left-width: 3px;
+}
+
 .column-item:hover {
   background-color: #f0f0f0;
 }
@@ -205,6 +215,17 @@
   opacity: 0.6;
   background-color: #e3f2fd;
   border: 1px dashed #4a90e2;
+}
+
+.group-columns-container {
+  position: relative;
+  padding: 0;
+  margin: 0;
+}
+
+.group-drop-indicator {
+  margin-left: 20px;
+  width: calc(100% - 20px);
 }
 
 .expand-icon {
