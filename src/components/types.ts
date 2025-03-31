@@ -3,18 +3,29 @@ import { ColDef } from 'ag-grid-community';
 // Extend the ColDef interface to include groupPath
 export interface ExtendedColDef extends ColDef {
   groupPath?: string[];
+  pinned?: boolean | 'left' | 'right' | null;
+  hide?: boolean;
+  width?: number;
   field: string; // Make field required for our implementation
 }
 
 // Define operation types for column changes
 export type OperationType = 
-  | 'INSERT' 
   | 'ADD' 
-  | 'ADD_AT_INDEX' 
-  | 'REMOVED' 
-  | 'REORDERED' 
+  | 'REMOVE' 
+  | 'UPDATE' 
+  | 'CLEAR' 
+  | 'REORDER' 
   | 'REORDER_AT_INDEX' 
-  | 'NONE';
+  | 'VISIBILITY_CHANGED' 
+  | 'PINNING_CHANGED' 
+  | 'SHOW_ALL' 
+  | 'HIDE_ALL' 
+  | 'RESIZE' 
+  | 'RESET_WIDTHS'
+  | 'ADD_AT_INDEX'
+  | 'REMOVED'
+  | 'REORDERED';
 
 // Define column group actions
 export type ColumnGroupAction = 'REMOVE' | 'UPDATE';
@@ -23,6 +34,7 @@ export type ColumnGroupAction = 'REMOVE' | 'UPDATE';
 export interface ColumnGroup {
   headerName: string;
   children: string[];
+  columns: ExtendedColDef[]; // Make columns required
 }
 
 // Define configuration panel parameters

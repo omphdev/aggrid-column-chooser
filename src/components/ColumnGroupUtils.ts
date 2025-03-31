@@ -162,7 +162,8 @@ export const ColumnGroupUtils = {
         // Create new group
         updatedGroups.push({
           headerName: targetGroupName,
-          children: [...columnIds]
+          children: [...columnIds],
+          columns: []
         });
       }
     }
@@ -195,7 +196,7 @@ export const ColumnGroupUtils = {
       return updatedGroups;
     } else {
       // Create new group
-      return [...groups, { headerName: groupName, children: columnIds }];
+      return [...groups, { headerName: groupName, children: columnIds, columns: [] }];
     }
   },
   

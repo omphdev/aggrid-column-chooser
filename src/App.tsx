@@ -91,9 +91,9 @@ const App: React.FC = () => {
 
   // Initial column groups - these will be displayed in the selected panel
   const [columnGroups, setColumnGroups] = useState<ColumnGroup[]>([
-    { headerName: 'Personal Information', children: ['id', 'name', 'age'] },
-    { headerName: 'Location Information', children: ['city', 'state'] },
-    { headerName: 'Employment Details', children: ['salary', 'department'] }
+    { headerName: 'Personal Information', children: ['id', 'name', 'age'], columns: [] },
+    { headerName: 'Location Information', children: ['city', 'state'], columns: [] },
+    { headerName: 'Employment Details', children: ['salary', 'department'], columns: [] }
   ]);
 
   // Effect to ensure initial groups have the correct children
@@ -163,7 +163,7 @@ const App: React.FC = () => {
         // Create a new group
         setColumnGroups(prevGroups => [
           ...prevGroups,
-          { headerName: replacementName, children: [] }
+          { headerName: replacementName, children: [], columns: [] }
         ]);
       }
     }
