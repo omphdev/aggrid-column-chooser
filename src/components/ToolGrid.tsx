@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ToolGridProps, ExtendedColDef, OperationType } from './types';
+import { ToolGridProps, ExtendedColDef, OperationType, ColumnGroup, ColumnGroupAction } from './types';
 import MainGrid from './MainGrid';
 import ConfigurationPanel from './ConfigurationPanel';
+import ColumnGroupUtils from './ColumnGroupUtils';
 import './styles.css';
+
 
 // Extend MainGrid props type with getGridApi
 interface ExtendedMainGridProps {
@@ -17,6 +19,9 @@ const ToolGrid: React.FC<ToolGridProps> = ({ columnDefs, rowData, configPanelPar
   
   // State for the actively displayed columns in the grid
   const [activeColumnDefs, setActiveColumnDefs] = useState<ExtendedColDef[]>([]);
+  
+  // State for column groups
+  const [localColumnGroups, setLocalColumnGroups] = useState<ColumnGroup[]>([]);
   
   // Flag to track if we're in the middle of a column update operation
   const isUpdatingRef = useRef<boolean>(false);
@@ -33,9 +38,19 @@ const ToolGrid: React.FC<ToolGridProps> = ({ columnDefs, rowData, configPanelPar
     if (isUpdatingRef.current) return;
     
     const visibleColumns = columnDefs.filter(colDef => colDef.hide !== true);
-    setActiveColumnDefs(visibleColumns);
-    setColumnOrder(visibleColumns.map(col => col.field));
-  }, [columnDefs]);
+    
+    // Use the utility to get columns ordered according to groups
+    const initialGroups = configPanelParams?.configPanel?.columnGroups || [];
+    const orderedColumns = ColumnGroupUtils.getOrderedColumnsFromGroups(visibleColumns, initialGroups);
+    
+    setActiveColumnDefs(orderedColumns);
+    setColumnOrder(orderedColumns.map(col => col.field));
+    
+    // Initialize column groups
+    if (configPanelParams?.configPanel?.columnGroups) {
+      setLocalColumnGroups(configPanelParams.configPanel.columnGroups);
+    }
+  }, [columnDefs, configPanelParams]);
 
   // Function to get a reference to the grid API
   const getGridApi = (api: any) => {
@@ -43,7 +58,6 @@ const ToolGrid: React.FC<ToolGridProps> = ({ columnDefs, rowData, configPanelPar
   };
 
   // Use effect to update the grid when active column definitions change
-  // This is important to ensure the grid is always showing the most up-to-date columns
   useEffect(() => {
     if (!gridRef.current || !gridRef.current.api) return;
     
@@ -72,7 +86,7 @@ const ToolGrid: React.FC<ToolGridProps> = ({ columnDefs, rowData, configPanelPar
     // Then apply the column ordering
     applyColumnOrdering();
     
-  }, [activeColumnDefs, columnOrder]);
+  }, [activeColumnDefs, columnOrder, localColumnGroups]);
 
   // Function to safely update columns with debouncing
   const safelyUpdateColumns = (columns: ExtendedColDef[], operationType: string) => {
@@ -105,16 +119,23 @@ const ToolGrid: React.FC<ToolGridProps> = ({ columnDefs, rowData, configPanelPar
     
     // For explicit index-based operations, trust the exact order provided
     if (operationType === 'ADD_AT_INDEX' || operationType === 'REORDER_AT_INDEX') {
+      // Get columns ordered according to groups
+      const orderedColumns = ColumnGroupUtils.getOrderedColumnsFromGroups(selectedColumns, localColumnGroups);
+      
+      // Update column groups ordering based on the new column order
+      const updatedGroups = ColumnGroupUtils.updateGroupsFromColumnOrder(localColumnGroups, orderedColumns);
+      setLocalColumnGroups(updatedGroups);
+      
       // Update our local state with the new columns and order
-      safelyUpdateColumns(selectedColumns, operationType);
+      safelyUpdateColumns(orderedColumns, operationType);
       
       // Update the grid directly if we have access to its API
       if (gridRef.current && gridRef.current.api) {
         // First, update the column definitions
-        gridRef.current.api.setColumnDefs(selectedColumns);
+        gridRef.current.api.setColumnDefs(orderedColumns);
         
         // Then, force the exact order by applying column state
-        const columnState = selectedColumns.map(col => ({
+        const columnState = orderedColumns.map(col => ({
           colId: col.field,
           hide: false
         }));
@@ -129,7 +150,12 @@ const ToolGrid: React.FC<ToolGridProps> = ({ columnDefs, rowData, configPanelPar
     } 
     // Standard handling for other operations
     else {
-      safelyUpdateColumns(selectedColumns, operationType);
+      const orderedColumns = ColumnGroupUtils.getOrderedColumnsFromGroups(selectedColumns, localColumnGroups);
+      safelyUpdateColumns(orderedColumns, operationType);
+      
+      // Update column groups ordering for standard operations as well
+      const updatedGroups = ColumnGroupUtils.updateGroupsFromColumnOrder(localColumnGroups, orderedColumns);
+      setLocalColumnGroups(updatedGroups);
     }
     
     // Pass the change to the parent component
@@ -143,6 +169,50 @@ const ToolGrid: React.FC<ToolGridProps> = ({ columnDefs, rowData, configPanelPar
       configPanelParams.configPanel.onColumnChanged(selectedColumns, parentOperationType);
     }
   };
+
+  // Handle column group changes
+// Handle column group changes
+const handleColumnGroupChanged = (headerName: string, action: ColumnGroupAction, replacementName?: string) => {
+  if (action === 'REMOVE') {
+    // Remove the group
+    const updatedGroups = localColumnGroups.filter(group => group.headerName !== headerName);
+    setLocalColumnGroups(updatedGroups);
+    
+    // Re-order columns without this group
+    const reorderedColumns = ColumnGroupUtils.getOrderedColumnsFromGroups(activeColumnDefs, updatedGroups);
+    safelyUpdateColumns(reorderedColumns, 'REORDERED');
+  } 
+  else if (action === 'UPDATE' && replacementName) {
+    // Update the group
+    const updatedGroups = [...localColumnGroups];
+    const groupIndex = updatedGroups.findIndex(group => group.headerName === headerName);
+    
+    if (groupIndex !== -1) {
+      // Update existing group
+      updatedGroups[groupIndex] = {
+        ...updatedGroups[groupIndex],
+        headerName: replacementName
+      };
+    } else {
+      // Add new group
+      updatedGroups.push({
+        headerName: replacementName,
+        children: []
+      });
+    }
+    
+    setLocalColumnGroups(updatedGroups);
+    
+    // Re-order columns with the updated group
+    const reorderedColumns = ColumnGroupUtils.getOrderedColumnsFromGroups(activeColumnDefs, updatedGroups);
+    safelyUpdateColumns(reorderedColumns, 'REORDERED');
+  }
+  
+  // Pass the change to the parent component
+  if (configPanelParams?.configPanel?.onColumnGroupChanged) {
+    configPanelParams.configPanel.onColumnGroupChanged(headerName, action, replacementName);
+  }
+};
 
   return (
     <div className="tool-grid-container">
@@ -160,7 +230,9 @@ const ToolGrid: React.FC<ToolGridProps> = ({ columnDefs, rowData, configPanelPar
             ...configPanelParams,
             configPanel: {
               ...configPanelParams.configPanel,
-              onColumnChanged: handleColumnChanged
+              columnGroups: localColumnGroups,
+              onColumnChanged: handleColumnChanged,
+              onColumnGroupChanged: handleColumnGroupChanged
             }
           }}
         />

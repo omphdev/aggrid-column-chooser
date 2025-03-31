@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ToolGrid } from './components';
 import { ExtendedColDef, ColumnGroup, OperationType, ColumnGroupAction } from './components/types';
 import 'ag-grid-community/styles/ag-grid.css';
@@ -89,10 +89,27 @@ const App: React.FC = () => {
   // State for column definitions
   const [columnDefs, setColumnDefs] = useState<ExtendedColDef[]>(initialColumnDefs);
 
-  // Initial column groups
+  // Initial column groups - these will be displayed in the selected panel
   const [columnGroups, setColumnGroups] = useState<ColumnGroup[]>([
     { headerName: 'Personal Information', children: ['id', 'name', 'age'] },
+    { headerName: 'Location Information', children: ['city', 'state'] },
+    { headerName: 'Employment Details', children: ['salary', 'department'] }
   ]);
+
+  // Effect to ensure initial groups have the correct children
+  useEffect(() => {
+    // Update groups to only include visible columns
+    const visibleColumnFields = columnDefs
+      .filter(col => col.hide !== true)
+      .map(col => col.field);
+    
+    const updatedGroups = columnGroups.map(group => ({
+      ...group,
+      children: group.children.filter(field => visibleColumnFields.includes(field))
+    })).filter(group => group.children.length > 0);
+    
+    setColumnGroups(updatedGroups);
+  }, []);
 
   // Handle column changes
   const handleColumnChanged = (selectedColumns: ExtendedColDef[], operationType: OperationType) => {
@@ -121,23 +138,40 @@ const App: React.FC = () => {
     console.log('Column group changed:', action, headerName, replacementName);
 
     if (action === 'REMOVE') {
+      // Remove the group
       setColumnGroups(prevGroups => prevGroups.filter(group => group.headerName !== headerName));
-    } else if (action === 'UPDATE' && replacementName) {
-      setColumnGroups(prevGroups => {
-        const groupIndex = prevGroups.findIndex(group => group.headerName === headerName);
-        
-        if (groupIndex !== -1) {
-          const newGroups = [...prevGroups];
-          newGroups[groupIndex] = {
-            ...newGroups[groupIndex],
-            headerName: replacementName,
-          };
-          return newGroups;
+    } 
+    else if (action === 'UPDATE') {
+      // Find the existing group
+      const existingGroupIndex = columnGroups.findIndex(group => group.headerName === headerName);
+      
+      if (existingGroupIndex !== -1) {
+        // Update existing group
+        if (replacementName && replacementName !== headerName) {
+          // Rename the group
+          setColumnGroups(prevGroups => {
+            const newGroups = [...prevGroups];
+            newGroups[existingGroupIndex] = {
+              ...newGroups[existingGroupIndex],
+              headerName: replacementName
+            };
+            return newGroups;
+          });
         }
-        
-        return prevGroups;
-      });
+      } 
+      else if (replacementName) {
+        // Create a new group
+        setColumnGroups(prevGroups => [
+          ...prevGroups,
+          { headerName: replacementName, children: [] }
+        ]);
+      }
     }
+  };
+
+  // Handler for updating the column groups (can be called by child components)
+  const updateColumnGroups = (newGroups: ColumnGroup[]) => {
+    setColumnGroups(newGroups);
   };
 
   // Sample data for the grid
@@ -151,7 +185,19 @@ const App: React.FC = () => {
 
   return (
     <div className="app-container">
-      <h1>AG Grid Column Chooser Example</h1>
+      <h1>AG Grid Column Chooser with Column Groups</h1>
+      <div className="description">
+        <p>
+          This example demonstrates column groups in the selected panel. You can:
+        </p>
+        <ul>
+          <li>Drag and drop columns between available and selected panels</li>
+          <li>Create column groups in the selected panel (right-click on selected columns)</li>
+          <li>Drag and drop entire groups to reorder them</li>
+          <li>Add or remove columns from groups</li>
+          <li>Expand/collapse groups</li>
+        </ul>
+      </div>
       <ToolGrid
         columnDefs={columnDefs}
         rowData={rowData}

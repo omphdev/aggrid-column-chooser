@@ -114,6 +114,11 @@
   user-select: none;
 }
 
+.column-item.indented {
+  background-color: #f8f8f8;
+  border-left: 3px solid #4a90e2;
+}
+
 .column-item:hover {
   background-color: #f0f0f0;
 }
@@ -132,7 +137,7 @@
   cursor: grabbing;
 }
 
-/* Group styles */
+/* Available panel group styles */
 .group-container {
   margin-bottom: 2px;
 }
@@ -161,6 +166,42 @@
 }
 
 .group-header.dragging {
+  opacity: 0.6;
+  background-color: #e3f2fd;
+  border: 1px dashed #4a90e2;
+}
+
+/* Selected panel group styles */
+.group-container-selected {
+  margin-bottom: 2px;
+  border-radius: 2px;
+  background-color: #f8f8f8;
+  border: 1px solid #e0e0e0;
+}
+
+.selected-group-header {
+  padding: 8px 10px;
+  cursor: grab;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  user-select: none;
+  border-radius: 2px 2px 0 0;
+  transition: background-color 0.2s;
+  background-color: #e6f0fa;
+  border-bottom: 1px solid #d0e3fa;
+}
+
+.selected-group-header:hover {
+  background-color: #d8e8f7;
+}
+
+.selected-group-header.group-drop-target {
+  background-color: rgba(74, 144, 226, 0.2);
+  border: 1px dashed #4a90e2;
+}
+
+.selected-group-header.dragging {
   opacity: 0.6;
   background-color: #e3f2fd;
   border: 1px dashed #4a90e2;
@@ -209,6 +250,12 @@
   opacity: 0.6;
   background-color: #f8f8f8;
   border: 1px dashed #aaa;
+}
+
+.group-container-selected.dragging {
+  opacity: 0.6;
+  background-color: #f8f8f8;
+  border: 1px dashed #4a90e2;
 }
 
 /* Drop indicator styles */
@@ -281,6 +328,8 @@
 .columns-list, 
 .column-item, 
 .group-header,
+.selected-group-header,
+.group-container-selected,
 .panel-section,
 .panel-content {
   outline: none;

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -23,6 +23,22 @@ const MainGrid: React.FC<ExtendedMainGridProps> = ({ columnDefs, rowData, getGri
     }
   };
 
+  // Function to ensure column order
+  const enforceColumnOrder = useCallback(() => {
+    if (!gridRef.current || !gridRef.current.api || !gridRef.current.columnApi) return;
+    
+    // Force the column order to match exactly what was provided
+    const columnState = columnDefs.map(col => ({
+      colId: col.field,
+      hide: false
+    }));
+    
+    gridRef.current.columnApi.applyColumnState({
+      state: columnState,
+      applyOrder: true
+    });
+  }, [columnDefs]);
+
   // Update grid when column definitions change
   useEffect(() => {
     if (!gridRef.current || !gridRef.current.api) return;
@@ -35,20 +51,25 @@ const MainGrid: React.FC<ExtendedMainGridProps> = ({ columnDefs, rowData, getGri
     gridRef.current.api.setColumnDefs(columnDefs);
     
     // Force the column order to match exactly what was provided
-    const columnState = columnDefs.map(col => ({
-      colId: col.field
-    }));
-    
-    gridRef.current.columnApi.applyColumnState({
-      state: columnState,
-      applyOrder: true
-    });
+    enforceColumnOrder();
     
     // Reset the updating flag after a short delay
     setTimeout(() => {
       isUpdatingColumnsRef.current = false;
     }, 100);
-  }, [columnDefs]);
+  }, [columnDefs, enforceColumnOrder]);
+
+  // Listen for column moves and reset if needed
+  const onColumnMoved = (event: any) => {
+    // If columns are being programmatically updated, don't interfere
+    if (isUpdatingColumnsRef.current) return;
+    
+    // If user moved columns manually in the grid, we need to reset to our desired order
+    // This is to ensure the grid always reflects the order from our columnDefs
+    setTimeout(() => {
+      enforceColumnOrder();
+    }, 10);
+  };
 
   return (
     <div className="main-grid-container ag-theme-alpine" style={{ height: '500px', width: '100%' }}>
@@ -57,6 +78,7 @@ const MainGrid: React.FC<ExtendedMainGridProps> = ({ columnDefs, rowData, getGri
         onGridReady={onGridReady}
         rowData={rowData}
         columnDefs={columnDefs}
+        onColumnMoved={onColumnMoved}
         defaultColDef={{
           flex: 1,
           minWidth: 100,
