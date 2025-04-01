@@ -51,10 +51,12 @@ const AvailablePanel: React.FC<AvailablePanelProps> = ({
     
     columns.forEach(col => {
       const groupPath = col.groupPath || [];
+      // Exclude the last element (field name) from the group path
+      const groupPathWithoutField = groupPath.slice(0, -1);
       
       let current = tree;
       
-      groupPath.forEach(group => {
+      groupPathWithoutField.forEach(group => {
         if (!current[group]) {
           current[group] = {};
         }

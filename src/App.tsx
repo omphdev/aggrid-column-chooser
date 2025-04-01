@@ -11,78 +11,78 @@ const App: React.FC = () => {
     { 
       headerName: 'ID', 
       field: 'id', 
-      groupPath: ['Basic Info'] 
+      groupPath: ['Basic Info', 'id'] 
     },
     { 
       headerName: 'Name', 
       field: 'name',
-      groupPath: ['Basic Info'] 
+      groupPath: ['Basic Info', 'name'] 
     },
     { 
       headerName: 'Age', 
       field: 'age',
-      groupPath: ['Personal Info'] 
+      groupPath: ['Personal Info', 'age'] 
     },
     { 
       headerName: 'Email', 
       field: 'email',
-      groupPath: ['Contact Info'] 
+      groupPath: ['Contact Info', 'email'] 
     },
     { 
       headerName: 'Phone', 
       field: 'phone',
       hide: true, // This column will be in available columns
-      groupPath: ['Contact Info'] 
+      groupPath: ['Contact Info', 'phone'] 
     },
     { 
       headerName: 'Address', 
       field: 'address',
       hide: true, // This column will be in available columns
-      groupPath: ['Contact Info', 'Location'] 
+      groupPath: ['Contact Info', 'Location', 'address'] 
     },
     { 
       headerName: 'City', 
       field: 'city',
-      groupPath: ['Contact Info', 'Location'] 
+      groupPath: ['Contact Info', 'Location', 'city'] 
     },
     { 
       headerName: 'State', 
       field: 'state',
-      groupPath: ['Contact Info', 'Location'] 
+      groupPath: ['Contact Info', 'Location', 'state'] 
     },
     { 
       headerName: 'Zip', 
       field: 'zip',
       hide: true, // This column will be in available columns
-      groupPath: ['Contact Info', 'Location'] 
+      groupPath: ['Contact Info', 'Location', 'zip'] 
     },
     { 
       headerName: 'Country', 
       field: 'country',
       hide: true, // This column will be in available columns
-      groupPath: ['Contact Info', 'Location'] 
+      groupPath: ['Contact Info', 'Location', 'country'] 
     },
     { 
       headerName: 'Salary', 
       field: 'salary',
-      groupPath: ['Employment Info'] 
+      groupPath: ['Employment Info', 'salary'] 
     },
     { 
       headerName: 'Department', 
       field: 'department',
-      groupPath: ['Employment Info'] 
+      groupPath: ['Employment Info', 'department'] 
     },
     { 
       headerName: 'Position', 
       field: 'position',
       hide: true, // This column will be in available columns
-      groupPath: ['Employment Info'] 
+      groupPath: ['Employment Info', 'position'] 
     },
     { 
       headerName: 'Start Date', 
       field: 'startDate',
       hide: true, // This column will be in available columns
-      groupPath: ['Employment Info'] 
+      groupPath: ['Employment Info', 'startDate'] 
     },
   ];
 
@@ -91,12 +91,12 @@ const App: React.FC = () => {
 
   // Initial column groups - these will be displayed in the selected panel
   const [columnGroups, setColumnGroups] = useState<ColumnGroup[]>([
-    { headerName: 'Personal Information', children: ['id', 'name', 'age'] },
-    { headerName: 'Location Information', children: ['city', 'state'] },
-    { headerName: 'Employment Details', children: ['salary', 'department'] }
+    { headerName: 'Personal Information', children: ['id', 'name', 'age'], isExpanded: true },
+    { headerName: 'Location Information', children: ['city', 'state'], isExpanded: true },
+    { headerName: 'Employment Details', children: ['salary', 'department'], isExpanded: true }
   ]);
 
-  // Effect to ensure initial groups have the correct children
+  // Effect to ensure initial groups have the correct children and are expanded
   useEffect(() => {
     // Update groups to only include visible columns
     const visibleColumnFields = columnDefs
@@ -105,7 +105,8 @@ const App: React.FC = () => {
     
     const updatedGroups = columnGroups.map(group => ({
       ...group,
-      children: group.children.filter(field => visibleColumnFields.includes(field))
+      children: group.children.filter(field => visibleColumnFields.includes(field)),
+      isExpanded: true // Ensure groups are expanded
     })).filter(group => group.children.length > 0);
     
     setColumnGroups(updatedGroups);
@@ -199,7 +200,7 @@ const App: React.FC = () => {
         rowData={rowData}
         configPanelParams={{
           configPanel: {
-            columnGroups: columnGroups,
+            columnGroups: [],
             onColumnChanged: handleColumnChanged,
             onColumnGroupChanged: handleColumnGroupChanged,
           }

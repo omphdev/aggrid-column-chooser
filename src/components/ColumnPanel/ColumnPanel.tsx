@@ -79,7 +79,8 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     createSelectedColumnGroup 
   } = useColumnGroups({ 
     initialColumnGroups, 
-    onColumnGroupChanged 
+    onColumnGroupChanged,
+    columnDefs
   });
 
   const { 

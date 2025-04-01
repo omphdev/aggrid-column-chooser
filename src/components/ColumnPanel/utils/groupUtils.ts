@@ -53,6 +53,24 @@ export const GroupUtils = {
       newSelectedColumns = [...newSelectedColumns, ...updatedColumnsToMove];
     }
     
+    // Expand groups for the moved columns
+    const expandedGroups = new Set<string>();
+    columnsToMove.forEach(col => {
+      if (col.groupPath) {
+        col.groupPath.forEach((_, index) => {
+          const path = col.groupPath!.slice(0, index + 1).join('.');
+          expandedGroups.add(path);
+        });
+      }
+    });
+    
+    // Update the expandedSelectedGroups state
+    if (typeof window !== 'undefined' && window.dispatchEvent) {
+      window.dispatchEvent(new CustomEvent('expandSelectedGroups', { 
+        detail: { groups: Array.from(expandedGroups) }
+      }));
+    }
+    
     return {
       newAvailable: newAvailableColumns,
       newSelected: newSelectedColumns

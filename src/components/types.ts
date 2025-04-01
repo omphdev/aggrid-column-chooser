@@ -23,6 +23,7 @@ export type ColumnGroupAction = 'REMOVE' | 'UPDATE';
 export interface ColumnGroup {
   headerName: string;
   children: string[];
+  isExpanded?: boolean;
 }
 
 // Define configuration panel parameters
