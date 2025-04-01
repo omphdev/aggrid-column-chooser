@@ -181,20 +181,6 @@ const App: React.FC = () => {
 
   return (
     <div className="app-container">
-      <h1>AG Grid Column Chooser with Column Groups</h1>
-      <div className="description">
-        <p>
-          This example demonstrates column groups in the selected panel. You can:
-        </p>
-        <ul>
-          <li>Drag and drop columns between available and selected panels</li>
-          <li>Create column groups in the selected panel (right-click on selected columns)</li>
-          <li>Drag and drop entire groups to reorder them</li>
-          <li>Add or remove columns from groups</li>
-          <li>Expand/collapse groups</li>
-          <li>Reorder columns within groups by dragging them</li>
-        </ul>
-      </div>
       <ToolGrid
         columnDefs={columnDefs}
         rowData={rowData}
