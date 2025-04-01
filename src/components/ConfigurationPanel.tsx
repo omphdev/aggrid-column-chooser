@@ -1,5 +1,7 @@
+// src/components/ConfigurationPanel.tsx
 import React, { useState } from 'react';
 import ColumnPanel from './ColumnPanel';
+import { GroupPanel1, GroupPanel2 } from './GroupPanel';
 import { ConfigurationPanelProps } from './types';
 
 const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({ columnDefs, configPanelParams }) => {
@@ -17,6 +19,26 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({ columnDefs, con
             onColumnGroupChanged={configPanelParams.configPanel.onColumnGroupChanged}
           />
         );
+      case 'group-tab-1':
+        return configPanelParams.groupPanel ? (
+          <GroupPanel1
+            groupsCols={configPanelParams.groupPanel.groupsCols}
+            selectedGroups={configPanelParams.groupPanel.selectedGroups}
+            onGroupChanged={configPanelParams.groupPanel.onGroupChanged}
+          />
+        ) : (
+          <div>Group panel configuration not provided</div>
+        );
+      case 'group-tab-2':
+        return configPanelParams.groupPanel ? (
+          <GroupPanel2
+            groupsCols={configPanelParams.groupPanel.groupsCols}
+            selectedGroups={configPanelParams.groupPanel.selectedGroups}
+            onGroupChanged={configPanelParams.groupPanel.onGroupChanged}
+          />
+        ) : (
+          <div>Group panel configuration not provided</div>
+        );
       default:
         return <div>No panel selected</div>;
     }
@@ -31,7 +53,18 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({ columnDefs, con
         >
           Column Configuration
         </button>
-        {/* Additional panel tabs can be added here */}
+        <button 
+          className={`panel-tab ${activePanel === 'group-tab-1' ? 'active' : ''}`}
+          onClick={() => setActivePanel('group-tab-1')}
+        >
+          Group Tab 1
+        </button>
+        <button 
+          className={`panel-tab ${activePanel === 'group-tab-2' ? 'active' : ''}`}
+          onClick={() => setActivePanel('group-tab-2')}
+        >
+          Group Tab 2
+        </button>
       </div>
       <div className="panel-content">
         {renderPanel()}

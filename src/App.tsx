@@ -1,6 +1,8 @@
+// src/App.tsx
 import React, { useState, useEffect } from 'react';
 import { ToolGrid } from './components';
 import { ExtendedColDef, ColumnGroup, OperationType, ColumnGroupAction } from './components/types';
+import { ColDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import './components/styles.css';
@@ -96,6 +98,9 @@ const App: React.FC = () => {
     { headerName: 'Employment Details', children: ['salary', 'department'], isExpanded: true }
   ]);
 
+  // State for group panel
+  const [selectedGroups, setSelectedGroups] = useState<string[]>(['id', 'name', 'email', 'department']);
+
   // Effect to ensure initial groups have the correct children and are expanded
   useEffect(() => {
     // Update groups to only include visible columns
@@ -170,6 +175,14 @@ const App: React.FC = () => {
     }
   };
 
+  // Handle group changes
+  const handleGroupChanged = (updatedGroups: ColDef[], operationType: string) => {
+    console.log('Group changed:', operationType, updatedGroups.map(col => col.field).join(', '));
+    
+    // Update the selected groups
+    setSelectedGroups(updatedGroups.map(col => col.field as string));
+  };
+
   // Sample data for the grid
   const rowData = [
     { id: 1, name: 'John Doe', age: 30, email: 'john@example.com', phone: '123-456-7890', address: '123 Main St', city: 'New York', state: 'NY', zip: '10001', country: 'USA', salary: 100000, department: 'Engineering', position: 'Developer', startDate: '2020-01-01' },
@@ -186,9 +199,14 @@ const App: React.FC = () => {
         rowData={rowData}
         configPanelParams={{
           configPanel: {
-            columnGroups: [],
+            columnGroups: columnGroups,
             onColumnChanged: handleColumnChanged,
             onColumnGroupChanged: handleColumnGroupChanged,
+          },
+          groupPanel: {
+            selectedGroups: selectedGroups,
+            groupsCols: initialColumnDefs,
+            onGroupChanged: handleGroupChanged
           }
         }}
       />
