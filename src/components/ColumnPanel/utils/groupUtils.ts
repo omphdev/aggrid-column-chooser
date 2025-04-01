@@ -18,6 +18,9 @@ export const GroupUtils = {
       return { newAvailable: availableColumns, newSelected: selectedColumns };
     }
     
+    console.log(`moveToSelected called with targetIndex:`, targetIndex);
+    console.log('columns before:', selectedColumns.map(c => c.field));
+    
     // Find columns in available that are selected
     const columnsToMove = availableColumns.filter(col => 
       columnIds.includes(col.field)
@@ -43,6 +46,7 @@ export const GroupUtils = {
     
     if (targetIndex !== undefined && targetIndex >= 0 && targetIndex <= newSelectedColumns.length) {
       // Insert at specific index
+      console.log(`Inserting ${updatedColumnsToMove.length} columns at index ${targetIndex}`);
       newSelectedColumns = [
         ...newSelectedColumns.slice(0, targetIndex),
         ...updatedColumnsToMove,
@@ -50,8 +54,11 @@ export const GroupUtils = {
       ];
     } else {
       // Append to the end
+      console.log(`Appending ${updatedColumnsToMove.length} columns to the end`);
       newSelectedColumns = [...newSelectedColumns, ...updatedColumnsToMove];
     }
+    
+    console.log('columns after:', newSelectedColumns.map(c => c.field));
     
     // Expand groups for the moved columns
     const expandedGroups = new Set<string>();
@@ -76,6 +83,7 @@ export const GroupUtils = {
       newSelected: newSelectedColumns
     };
   },
+  
 
   /**
    * Move an entire group from available to selected

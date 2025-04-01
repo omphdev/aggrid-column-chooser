@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ExtendedColDef, OperationType, ColumnGroup } from '../../types';
 
 export interface UseSelectedColumnsProps {
@@ -16,17 +16,30 @@ export function useSelectedColumns({
 }: UseSelectedColumnsProps) {
   // State for selected columns
   const [selectedColumns, setSelectedColumns] = useState<ExtendedColDef[]>([]);
+  
+  // Add a ref to track drag operations
+  const isDragOperationRef = useRef<boolean>(false);
 
   // Initialize selected columns (columns with hide: false or undefined)
   useEffect(() => {
     // Don't update if we're in the middle of a reordering operation
     if (isReorderingRef.current) return;
     
+    // Don't update if we just completed a drag operation
+    if (isDragOperationRef.current) {
+      console.log('Skipping update due to drag operation');
+      isDragOperationRef.current = false;
+      return;
+    }
+    
     setSelectedColumns(columnDefs.filter(col => col.hide !== true));
   }, [columnDefs, isReorderingRef]);
 
   // Function to reorder a column within the selected panel
   const reorderColumn = (columnId: string, targetIndex: number, selectedItems: string[]) => {
+    // Set drag operation flag
+    isDragOperationRef.current = true;
+    
     // If we're dragging multiple columns, we need to handle them all
     const columnsToMove = selectedItems.includes(columnId) 
       ? selectedItems 
@@ -110,6 +123,9 @@ export function useSelectedColumns({
     selectedItems: string[], 
     columnGroups: ColumnGroup[]
   ) => {
+    // Set drag operation flag
+    isDragOperationRef.current = true;
+    
     // Find the group
     const groupIndex = columnGroups.findIndex(g => g.headerName === groupName);
     if (groupIndex === -1) return;
@@ -206,12 +222,20 @@ export function useSelectedColumns({
     // Notify parent component about the reordering
     onColumnChanged(updatedColumns, 'REORDER_AT_INDEX');
     
+    // Reset the reordering flag after a delay
+    setTimeout(() => {
+      isReorderingRef.current = false;
+    }, 100);
+    
     // Return updated children for the group
     return { updatedGroupChildren: currentChildren, newSelectedColumns: newSelectedOrder };
   };
 
   // Function to reorder a group within the selected panel
   const reorderGroup = (groupName: string, targetIndex: number, columnGroups: ColumnGroup[]) => {
+    // Set drag operation flag
+    isDragOperationRef.current = true;
+    
     // Find the group
     const group = columnGroups.find(g => g.headerName === groupName);
     
@@ -270,6 +294,9 @@ export function useSelectedColumns({
 
   // Function to move selected columns up in the selected panel
   const moveUp = (selectedItems: string[]) => {
+    // Set drag operation flag
+    isDragOperationRef.current = true;
+    
     if (selectedItems.length === 0) return;
     
     const newSelectedColumns = [...selectedColumns];
@@ -304,6 +331,9 @@ export function useSelectedColumns({
 
   // Function to move selected columns down in the selected panel
   const moveDown = (selectedItems: string[]) => {
+    // Set drag operation flag
+    isDragOperationRef.current = true;
+    
     if (selectedItems.length === 0) return;
     
     const newSelectedColumns = [...selectedColumns];
@@ -343,6 +373,7 @@ export function useSelectedColumns({
     reorderColumnInGroup,
     reorderGroup,
     moveUp,
-    moveDown
+    moveDown,
+    isDragOperationRef
   };
 }

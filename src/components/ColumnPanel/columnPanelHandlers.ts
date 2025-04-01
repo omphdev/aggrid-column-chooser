@@ -39,10 +39,14 @@ export const createDragDropHandlers = (
   onColumnChanged: (selectedColumns: ExtendedColDef[], operationType: OperationType) => void,
   onColumnGroupChanged: (headerName: string, action: ColumnGroupAction, replacementName?: string) => void,
   isReorderingRef: React.MutableRefObject<boolean>,
+  isDragOperationRef: React.MutableRefObject<boolean>,
   availablePanelRef: React.RefObject<HTMLDivElement | null>,
   selectedPanelRef: React.RefObject<HTMLDivElement | null>
 ) => {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, column: ExtendedColDef, isAvailable: boolean) => {
+    // Set drag operation flag
+    isDragOperationRef.current = true;
+    
     // Set the column being dragged in state
     setDraggedColumnId(column.field);
     setDraggedGroupPath(null);
@@ -85,6 +89,9 @@ export const createDragDropHandlers = (
   const handleGroupDragStart = (e: React.DragEvent<HTMLDivElement>, groupPath: string) => {
     e.stopPropagation();
     
+    // Set drag operation flag
+    isDragOperationRef.current = true;
+    
     // Set the group being dragged in state
     setDraggedGroupPath(groupPath);
     setDraggedColumnId(null);
@@ -111,6 +118,9 @@ export const createDragDropHandlers = (
 
   const handleSelectedGroupDragStart = (e: React.DragEvent<HTMLDivElement>, groupName: string) => {
     e.stopPropagation();
+    
+    // Set drag operation flag
+    isDragOperationRef.current = true;
     
     // Set the group being dragged in state
     setDraggedColumnGroup(groupName);
@@ -243,6 +253,9 @@ export const createDragDropHandlers = (
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, panel: string, groupPath?: string, groupName?: string) => {
     e.preventDefault();
     
+    // Ensure the drag operation flag is set
+    isDragOperationRef.current = true;
+    
     // Parse the drag data
     let dragData;
     try {
@@ -328,6 +341,7 @@ export const createDragDropHandlers = (
       }
       // Handle standard panel drops
       else if (sourcePanel === 'available' && panel === 'selected') {
+        console.log(`Moving from available to selected at index ${columnDropIndex}`);
         // Move from available to selected at the calculated drop index
         const result = GroupUtils.moveToSelected(draggedItems, availableColumns, selectedColumns, columnDropIndex);
         setAvailableColumns(result.newAvailable);
@@ -486,10 +500,17 @@ export const createColumnOperationHandlers = (
   moveUp: (selectedItems: string[]) => void,
   moveDown: (selectedItems: string[]) => void,
   expandedGroups: Set<string>,
-  setExpandedGroups: (groups: Set<string>) => void
+  setExpandedGroups: (groups: Set<string>) => void,
+  isDragOperationRef: React.MutableRefObject<boolean>
 ) => {
   const moveToSelected = (columnIds: string[] = selectedItems, targetIndex?: number) => {
     if (columnIds.length === 0) return;
+    
+    // Set drag operation flag
+    isDragOperationRef.current = true;
+    
+    console.log(`moveToSelected with targetIndex: ${targetIndex}`);
+    console.log('columns to move:', columnIds);
     
     const result = GroupUtils.moveToSelected(columnIds, availableColumns, selectedColumns, targetIndex);
     
@@ -503,6 +524,9 @@ export const createColumnOperationHandlers = (
   };
 
   const moveGroupToSelected = (groupPath: string, targetIndex?: number) => {
+    // Set drag operation flag
+    isDragOperationRef.current = true;
+    
     const result = GroupUtils.moveGroupToSelected(groupPath, availableColumns, selectedColumns, targetIndex);
     
     // Update local state
@@ -516,6 +540,9 @@ export const createColumnOperationHandlers = (
 
   const moveToAvailable = (columnIds: string[] = selectedItems) => {
     if (columnIds.length === 0) return;
+    
+    // Set drag operation flag
+    isDragOperationRef.current = true;
     
     const result = GroupUtils.moveToAvailable(columnIds, availableColumns, selectedColumns, columnGroups);
     
@@ -544,6 +571,9 @@ export const createColumnOperationHandlers = (
   };
 
   const clearAll = () => {
+    // Set drag operation flag
+    isDragOperationRef.current = true;
+    
     const result = GroupUtils.clearAll(availableColumns, selectedColumns, columnGroups);
     
     // Update state

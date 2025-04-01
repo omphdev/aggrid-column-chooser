@@ -47,7 +47,8 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     reorderColumnInGroup, 
     reorderGroup, 
     moveUp, 
-    moveDown 
+    moveDown,
+    isDragOperationRef
   } = useSelectedColumns({ 
     columnDefs, 
     isReorderingRef, 
@@ -148,6 +149,7 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     onColumnChanged,
     onColumnGroupChanged,
     isReorderingRef,
+    isDragOperationRef,
     availablePanelRef,
     selectedPanelRef
   );
@@ -183,7 +185,8 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
     moveUp,
     moveDown,
     expandedGroups,
-    setExpandedGroups
+    setExpandedGroups,
+    isDragOperationRef
   );
 
   // Handle right-click for context menu
