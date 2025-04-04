@@ -251,7 +251,7 @@ const ToolGrid: React.FC<ToolGridProps> = ({ columnDefs, rowData, configPanelPar
             ...configPanelParams,
             configPanel: {
               ...configPanelParams.configPanel,
-              columnGroups: localColumnGroups,
+              columnGroups: [],
               onColumnChanged: handleColumnChanged,
               onColumnGroupChanged: handleColumnGroupChanged
             }

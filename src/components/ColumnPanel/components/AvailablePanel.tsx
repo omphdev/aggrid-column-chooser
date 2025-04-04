@@ -1,7 +1,8 @@
-import React from 'react';
+// src/components/ColumnPanel/components/AvailablePanel.tsx
+import React, { useRef, useMemo } from 'react';
 import { ExtendedColDef } from '../../types';
-import GroupHeader from './GroupHeader';
-import ColumnItem from './ColumnItem';
+import VirtualTree from './VirtualTree';
+import { useTreeData } from '../hooks/useTreeData';
 import { getAllColumnsInGroup } from '../utils/treeUtils';
 
 interface AvailablePanelProps {
@@ -45,95 +46,26 @@ const AvailablePanel: React.FC<AvailablePanelProps> = ({
   onContextMenu,
   onToggleGroup
 }) => {
-  // Function to create tree structure from columns
-  const organizeColumnsIntoTree = (columns: ExtendedColDef[]) => {
-    const tree: any = {};
-    
-    columns.forEach(col => {
-      const groupPath = col.groupPath || [];
-      // Exclude the last element (field name) from the group path
-      const groupPathWithoutField = groupPath.slice(0, -1);
-      
-      let current = tree;
-      
-      groupPathWithoutField.forEach(group => {
-        if (!current[group]) {
-          current[group] = {};
-        }
-        current = current[group];
-      });
-      
-      if (!current.columns) {
-        current.columns = [];
-      }
-      
-      current.columns.push(col);
-    });
-    
-    return tree;
+  // Use the tree data hook to manage the virtualized tree
+  const { treeData, visibleNodes } = useTreeData({
+    columns: availableColumns,
+    expandedGroups,
+    isSelectedPanel: false
+  });
+  
+  // Content ref to get dimensions
+  const contentRef = useRef<HTMLDivElement>(null);
+  
+  // Calculate container height for the virtualized list
+  const listHeight = useMemo(() => {
+    return contentRef.current?.clientHeight || 300;
+  }, [contentRef.current?.clientHeight]);
+  
+  // Handle double-click to move column to selected
+  const handleDoubleClick = (columnId: string) => {
+    onMoveToSelected([columnId]);
   };
-
-  // Function to render tree nodes recursively
-  const renderTreeNode = (node: any, path: string[] = [], level = 0) => {
-    const entries = Object.entries(node);
-    
-    return (
-      <>
-        {entries.map(([key, value]: [string, any]) => {
-          if (key === 'columns') {
-            return (value as ExtendedColDef[]).map((col, idx) => (
-              <ColumnItem
-                key={col.field}
-                column={col}
-                index={idx}
-                isAvailable={true}
-                isSelected={selectedItems.includes(col.field)}
-                isDragging={col.field === draggedColumnId}
-                onSelect={onSelect}
-                onDoubleClick={() => onMoveToSelected([col.field])}
-                onContextMenu={(e) => onContextMenu(e)}
-                onDragStart={(e, column) => onDragStart(e, column, true)}
-              />
-            ));
-          } else {
-            const currentPath = [...path, key];
-            const pathString = currentPath.join('.');
-            const isExpanded = expandedGroups.has(pathString);
-            const isDropTarget = groupDropTarget === pathString;
-            const isDragging = draggedGroupPath === pathString;
-            
-            // Count columns in this group
-            const columnsInGroup = getAllColumnsInGroup(availableColumns, pathString);
-            const columnCount = columnsInGroup.length;
-            
-            return (
-              <div key={pathString} className="group-container">
-                <GroupHeader
-                  groupName={key}
-                  isExpanded={isExpanded}
-                  columnCount={columnCount}
-                  isDropTarget={isDropTarget}
-                  isDragging={isDragging}
-                  level={level}
-                  className="group-header"
-                  onToggle={(e) => onToggleGroup(e, pathString)}
-                  onDragStart={(e) => onGroupDragStart(e, pathString)}
-                  onContextMenu={(e) => onContextMenu(e, pathString)}
-                  onDragOver={(e) => onDragOver(e, 'available', pathString)}
-                  onDrop={(e) => onDrop(e, 'available', pathString)}
-                />
-                {isExpanded && renderTreeNode(value, currentPath, level + 1)}
-              </div>
-            );
-          }
-        })}
-      </>
-    );
-  };
-
-  // Organize available columns into a tree structure
-  const availableColumnsTree = organizeColumnsIntoTree(availableColumns);
-
+  
   return (
     <div className="panel-section available-columns">
       <div className="panel-header">
@@ -142,7 +74,7 @@ const AvailablePanel: React.FC<AvailablePanelProps> = ({
           {availableColumns.length} columns
         </div>
       </div>
-      <div className="panel-content">
+      <div className="panel-content" ref={contentRef}>
         <div 
           ref={availablePanelRef}
           className={`columns-list-container ${dropTarget === 'available' ? 'drop-target-active' : ''}`}
@@ -152,7 +84,25 @@ const AvailablePanel: React.FC<AvailablePanelProps> = ({
           onContextMenu={(e) => onContextMenu(e)}
         >
           <div className="columns-list">
-            {renderTreeNode(availableColumnsTree)}
+            <VirtualTree
+              treeData={treeData}
+              visibleNodes={visibleNodes}
+              selectedItems={selectedItems}
+              expandedGroups={expandedGroups}
+              toggleGroup={onToggleGroup}
+              onSelect={onSelect}
+              onDoubleClick={handleDoubleClick}
+              onContextMenu={onContextMenu}
+              onDragStart={(e, node, isAvailable) => onDragStart(e as React.DragEvent<HTMLDivElement>, node, isAvailable)}
+              onGroupDragStart={(e, groupPath) => onGroupDragStart(e as React.DragEvent<HTMLDivElement>, groupPath)}
+              draggedColumnId={draggedColumnId}
+              draggedGroupPath={draggedGroupPath}
+              groupDropTarget={groupDropTarget}
+              dropIndicatorIndex={-1}
+              isSelectedPanel={false}
+              height={listHeight}
+              width="100%"
+            />
           </div>
         </div>
       </div>
