@@ -1,5 +1,4 @@
-// src/components/ColumnPanel/ColumnPanel.tsx
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { ColumnPanelProps } from '../types';
 import AvailablePanel from './components/AvailablePanel';
 import SelectedPanel from './components/SelectedPanel';
@@ -15,34 +14,6 @@ import { useContextMenu } from './hooks/useContextMenu';
 
 // Import handlers
 import { createDragDropHandlers, createColumnOperationHandlers } from './columnPanelHandlers';
-
-// Import React Window CSS
-const REACT_WINDOW_STYLES = `
-  /* Ensure tree view items have proper height */
-  .ReactVirtualized__Grid__innerScrollContainer > div {
-    height: 32px !important;
-  }
-  
-  /* Custom styling for the scrollbars */
-  .ReactVirtualized__Grid::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  
-  .ReactVirtualized__Grid::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 4px;
-  }
-  
-  .ReactVirtualized__Grid::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 4px;
-  }
-  
-  .ReactVirtualized__Grid::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
-  }
-`;
 
 const ColumnPanel: React.FC<ColumnPanelProps> = ({
   columnDefs,
@@ -236,17 +207,6 @@ const ColumnPanel: React.FC<ColumnPanelProps> = ({
       openContextMenu({ x: e.clientX, y: e.clientY }, groupPath);
     }
   };
-
-  // Add React Window styles to the document
-  useEffect(() => {
-    const styleElement = document.createElement('style');
-    styleElement.textContent = REACT_WINDOW_STYLES;
-    document.head.appendChild(styleElement);
-    
-    return () => {
-      document.head.removeChild(styleElement);
-    };
-  }, []);
 
   return (
     <div className="column-panel">

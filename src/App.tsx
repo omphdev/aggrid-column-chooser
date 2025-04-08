@@ -199,7 +199,7 @@ const App: React.FC = () => {
         rowData={rowData}
         configPanelParams={{
           configPanel: {
-            columnGroups: [],
+            columnGroups: columnGroups,
             onColumnChanged: handleColumnChanged,
             onColumnGroupChanged: handleColumnGroupChanged,
           },
