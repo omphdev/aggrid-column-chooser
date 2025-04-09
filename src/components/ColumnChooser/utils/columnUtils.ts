@@ -216,56 +216,46 @@ export function organizeSelectedColumnsByGroups(
 
 /**
  * Calculate drop index based on mouse position
- * @param relativeY Mouse Y position relative to container
- * @param items Items in the list
- * @param draggedId ID of the dragged item
- * @param draggedItems IDs of all dragged items
- * @returns Drop index
+ * @param mouseY Mouse Y position relative to list container
+ * @param items The list items
+ * @param draggedId ID of the item being dragged
+ * @param draggedItems IDs of all items being dragged (for multi-selection)
+ * @returns The calculated drop index
  */
 export function calculateDropIndex(
-  relativeY: number,
+  mouseY: number,
   items: ColumnTreeNode[],
   draggedId: string,
-  draggedItems: string[] = []
+  draggedItems: string[]
 ): number {
-  // Fixed height assumption - adjust as needed
-  const ITEM_HEIGHT = 36;
+  const ITEM_HEIGHT = 36; // Estimated height of each item
   
-  // Calculate initial index based on position
-  let dropIndex = Math.floor(relativeY / ITEM_HEIGHT);
+  // Calculate the index based on mouse position
+  let index = Math.floor(mouseY / ITEM_HEIGHT);
   
   // Adjust for boundaries
-  dropIndex = Math.max(0, Math.min(dropIndex, items.length));
+  index = Math.max(0, Math.min(index, items.length));
   
-  // Check if draggedItems is empty and draggedId is valid
-  if (draggedItems.length === 0 && draggedId) {
-    draggedItems = [draggedId];
-  }
-  
-  // Find indices of items being dragged
-  const draggedIndices: number[] = [];
-  items.forEach((item, index) => {
-    if (draggedItems.includes(item.id)) {
-      draggedIndices.push(index);
+  // If dragging multiple items, adjust the index
+  if (draggedItems.includes(draggedId) && draggedItems.length > 1) {
+    // Filter out all dragged items
+    const filteredItems = items.filter(item => 
+      item.type === 'column' && !draggedItems.includes(item.id)
+    );
+    
+    // Find the nearest non-dragged item based on mouse position
+    const nearestIndex = Math.min(index, filteredItems.length);
+    
+    // Convert back to original index
+    if (nearestIndex < filteredItems.length) {
+      const nearestItem = filteredItems[nearestIndex];
+      index = items.findIndex(item => item.id === nearestItem.id);
+    } else {
+      index = items.length;
     }
-  });
-  
-  // Skip if we're not dragging anything in this list
-  if (draggedIndices.length === 0) {
-    return dropIndex;
   }
   
-  // Adjust the drop index based on which items are being dragged
-  // If dropping below dragged items, no adjustment needed
-  // If dropping above dragged items, adjust by the number of dragged items
-  const isDroppingAfterDraggedItems = dropIndex > Math.max(...draggedIndices);
-  if (!isDroppingAfterDraggedItems) {
-    // Count dragged items that are above the drop index
-    const itemsAboveDropIndex = draggedIndices.filter(idx => idx < dropIndex).length;
-    dropIndex -= itemsAboveDropIndex;
-  }
-  
-  return dropIndex;
+  return index;
 }
 
 /**

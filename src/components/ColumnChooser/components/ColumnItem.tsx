@@ -112,17 +112,7 @@ const ColumnItem: React.FC<ColumnItemProps> = ({
   // Combined styles
   const combinedStyles = {
     ...style,
-    opacity: isDragging ? 0.5 : 1,
-    padding: '8px 12px',
-    display: 'flex',
-    alignItems: 'center',
-    margin: 0,
-    height: 36,
-    boxSizing: 'border-box' as 'border-box',
-    borderBottom: '1px solid #f5f5f5',
-    cursor: 'grab',
-    backgroundColor: isSelected ? '#e3f2fd' : 'white',
-    userSelect: 'none' as 'none'
+    opacity: isDragging ? 0.5 : 1
   };
   
   // Combined class names

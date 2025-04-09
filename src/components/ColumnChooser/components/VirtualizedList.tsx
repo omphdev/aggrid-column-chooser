@@ -1,13 +1,13 @@
-import React, { useMemo, useCallback, useRef } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
-import { useDrag as useCustomDrag } from '../context/DragContext';
 
 // Props for virtualized list items
 export interface ListItemData<T> {
   items: T[];
   renderItem: (props: { item: T; index: number; style: React.CSSProperties }) => React.ReactNode;
-  dropIndicatorIndex: number;
+  dropIndicatorIndex?: number;
+  groupDropIndicatorIndices?: Record<string, number>;
 }
 
 // Props for virtualized list component
@@ -18,6 +18,7 @@ interface VirtualizedListProps<T> {
   renderItem: (props: { item: T; index: number; style: React.CSSProperties }) => React.ReactNode;
   className?: string;
   dropIndicatorIndex?: number;
+  groupDropIndicatorIndices?: Record<string, number>;
   onScroll?: (scrollTop: number) => void;
 }
 
@@ -29,45 +30,31 @@ function VirtualizedList<T>({
   renderItem,
   className = '',
   dropIndicatorIndex = -1,
+  groupDropIndicatorIndices = {},
   onScroll
 }: VirtualizedListProps<T>) {
-  // List ref to manipulate the list directly
-  const listRef = useRef<List>(null);
-  
-  // Access drag context to get drop indicator state
-  const { dragState } = useCustomDrag();
-  
-  // Use the provided dropIndicatorIndex or get it from dragState
-  const actualDropIndex = dropIndicatorIndex >= 0 ? dropIndicatorIndex : dragState.dropIndicatorIndex;
-  
   // Row renderer function
-  const Row = useCallback(({ index, style, data }: { 
-    index: number; 
-    style: React.CSSProperties; 
-    data: ListItemData<T> 
-  }) => {
-    // Show drop indicator above this row if it matches the drop index
-    const showIndicator = data.dropIndicatorIndex === index;
+  const Row = useCallback(({ index, style, data }: { index: number; style: React.CSSProperties; data: ListItemData<T> }) => {
+    const item = data.items[index];
+    
+    // Check if we need to render a drop indicator
+    const showDropIndicator = index === data.dropIndicatorIndex;
     
     return (
       <div style={style}>
-        {showIndicator && (
+        {showDropIndicator && (
           <div 
             className="drop-indicator" 
             style={{ 
-              height: '2px',
-              backgroundColor: '#2196f3',
-              margin: '0',
-              position: 'absolute',
-              top: '0',
-              left: '0',
-              right: '0',
-              zIndex: 5,
-              boxShadow: '0 0 3px rgba(33, 150, 243, 0.5)'
+              height: '3px', 
+              background: '#4a90e2', 
+              margin: '3px 0',
+              boxShadow: '0 0 4px rgba(74, 144, 226, 0.5)',
+              animation: 'pulse 1.5s infinite'
             }} 
           />
         )}
-        {data.renderItem({ item: data.items[index], index, style: {} })}
+        {data.renderItem({ item, index, style: {} })}
       </div>
     );
   }, []);
@@ -76,8 +63,9 @@ function VirtualizedList<T>({
   const itemData = useMemo(() => ({
     items,
     renderItem,
-    dropIndicatorIndex: actualDropIndex
-  }), [items, renderItem, actualDropIndex]);
+    dropIndicatorIndex,
+    groupDropIndicatorIndices
+  }), [items, renderItem, dropIndicatorIndex, groupDropIndicatorIndices]);
   
   // Handle scroll events
   const handleScroll = useCallback(({ scrollOffset }: { scrollOffset: number }) => {
@@ -86,15 +74,21 @@ function VirtualizedList<T>({
     }
   }, [onScroll]);
   
+  // Calculate extra item count for drop indicators
+  const extraItemCount = useMemo(() => {
+    let count = 0;
+    if (dropIndicatorIndex >= 0) count++;
+    return count;
+  }, [dropIndicatorIndex]);
+  
   return (
-    <div className={`virtualized-list-container ${className}`} style={{ height: height || '100%', overflow: 'hidden', position: 'relative' }}>
+    <div className={`virtualized-list-container ${className}`} style={{ height: height || '100%', overflow: 'hidden' }}>
       <AutoSizer>
         {({ width, height }: { width: number; height: number }) => (
           <List
-            ref={listRef}
             width={width}
             height={height}
-            itemCount={items.length}
+            itemCount={items.length + extraItemCount}
             itemSize={itemHeight}
             itemData={itemData}
             onScroll={handleScroll}
@@ -103,22 +97,6 @@ function VirtualizedList<T>({
           </List>
         )}
       </AutoSizer>
-      
-      {/* Drop indicator for the very bottom of the list */}
-      {actualDropIndex === items.length && items.length > 0 && (
-        <div 
-          style={{ 
-            position: 'absolute',
-            bottom: '0',
-            left: '0',
-            right: '0',
-            height: '2px',
-            backgroundColor: '#2196f3',
-            zIndex: 5,
-            boxShadow: '0 0 3px rgba(33, 150, 243, 0.5)'
-          }} 
-        />
-      )}
     </div>
   );
 }

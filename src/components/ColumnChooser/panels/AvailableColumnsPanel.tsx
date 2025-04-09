@@ -11,12 +11,12 @@ import { organizeColumnsIntoTree } from '../utils/columnUtils';
 
 interface AvailableColumnsPanelProps {
   className?: string;
-  onColumnsDrop?: (items: string[]) => void;
+  onDrop?: (dragItem: DragItem, dropResult: any) => void;
 }
 
 const AvailableColumnsPanel: React.FC<AvailableColumnsPanelProps> = ({ 
   className = '',
-  onColumnsDrop
+  onDrop 
 }) => {
   // Container ref
   const containerRef = useRef<HTMLDivElement>(null);
@@ -34,7 +34,9 @@ const AvailableColumnsPanel: React.FC<AvailableColumnsPanelProps> = ({
   } = useColumnChooser();
   
   const { 
-    setDropTarget
+    dragState, 
+    setDropTarget,
+    endDrag
   } = useCustomDrag();
   
   // Filter columns based on search term
@@ -75,44 +77,49 @@ const AvailableColumnsPanel: React.FC<AvailableColumnsPanelProps> = ({
     setSearchTerm(term);
   }, [setSearchTerm]);
   
-  // Setup drop target for the panel
-  const [{ isOver, canDrop }, drop] = useDrop<DragItem, unknown, { isOver: boolean, canDrop: boolean }>({
+  // Setup react-dnd drop for the panel
+  const [{ isOver, canDrop }, dropRef] = useDrop<DragItem, unknown, { isOver: boolean, canDrop: boolean }>({
     accept: [DragItemTypes.COLUMN, DragItemTypes.GROUP],
     collect: (monitor) => ({
       isOver: monitor.isOver({ shallow: true }),
       canDrop: monitor.canDrop()
     }),
     hover: (item, monitor) => {
-      // Only process if we're the direct target (not a nested drop target)
-      if (!monitor.isOver({ shallow: true })) return;
-      
-      // Set the drop target in our custom state
-      setDropTarget('available');
+      if (isOver) {
+        console.log("Hovering over available panel");
+        setDropTarget('available');
+      }
     },
     drop: (item, monitor) => {
-      // Only process if we're the direct target (not a nested drop target)
-      if (!monitor.isOver({ shallow: true })) return;
+      console.log("Dropped on available panel", item);
       
-      console.log(`Drop in available panel, item: ${item.id}, source: ${item.sourcePanel}`);
-      
-      // Only handle drops from selected panel
-      if (item.sourcePanel === 'selected') {
-        const itemsToMove = item.multiple && item.items ? item.items : [item.id];
-        if (onColumnsDrop) {
-          onColumnsDrop(itemsToMove);
-        }
+      // Prevent event bubbling if already handled
+      if (monitor.didDrop()) {
+        return;
       }
       
-      // Return information about where the drop occurred
-      return { droppedOn: 'available' };
+      const dropResult = { 
+        droppedOnPanel: true,
+        targetPanel: 'available'
+      };
+      
+      // Call the onDrop callback if provided
+      if (onDrop) {
+        onDrop(item, dropResult);
+      }
+      
+      // Reset drag state
+      endDrag();
+      
+      return dropResult;
     }
   });
   
-  // Connect the drop ref to the container ref
-  const connectRef = useCallback((el: HTMLDivElement | null) => {
+  // Combined ref
+  const combinedRef = (el: HTMLDivElement) => {
     containerRef.current = el;
-    drop(el);
-  }, [drop]);
+    dropRef(el);
+  };
   
   // Render item for virtualized list
   const renderItem = useCallback(({ item, index, style }: { 
@@ -149,7 +156,7 @@ const AvailableColumnsPanel: React.FC<AvailableColumnsPanelProps> = ({
   
   return (
     <div 
-      ref={connectRef}
+      ref={combinedRef}
       className={`available-columns-panel ${isOver && canDrop ? 'drop-target-active' : ''} ${className}`}
     >
       <div className="panel-header">
@@ -171,6 +178,7 @@ const AvailableColumnsPanel: React.FC<AvailableColumnsPanelProps> = ({
         <VirtualizedList
           items={columnTree}
           renderItem={renderItem}
+          dropIndicatorIndex={-1} // We don't show drop indicators in available panel
           className="available-columns-list"
         />
       </div>

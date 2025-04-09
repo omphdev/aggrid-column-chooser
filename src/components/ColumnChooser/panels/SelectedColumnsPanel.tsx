@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useRef, useEffect } from 'react';
+import React, { useMemo, useCallback, useRef } from 'react';
 import { useDrop } from 'react-dnd';
 import { ColumnTreeNode, DragItemTypes, DragItem } from '../../../types';
 import { useColumnChooser } from '../context/ColumnChooserContext';
@@ -7,22 +7,19 @@ import VirtualizedList from '../components/VirtualizedList';
 import ColumnItem from '../components/ColumnItem';
 import ColumnGroup from '../components/ColumnGroup';
 import SearchBox from '../components/SearchBox';
-import { organizeSelectedColumnsByGroups } from '../utils/columnUtils';
+import { organizeSelectedColumnsByGroups, calculateDropIndex } from '../utils/columnUtils';
 
 interface SelectedColumnsPanelProps {
   className?: string;
-  onColumnsReceived?: (items: string[], targetIndex?: number) => void;
-  onColumnsReordered?: (itemId: string, items: string[], targetIndex: number) => void;
+  onDrop?: (dragItem: DragItem, dropResult: any) => void;
 }
 
 const SelectedColumnsPanel: React.FC<SelectedColumnsPanelProps> = ({
   className = '',
-  onColumnsReceived,
-  onColumnsReordered
+  onDrop
 }) => {
   // Container ref
   const containerRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
   
   // Access contexts
   const { 
@@ -42,9 +39,10 @@ const SelectedColumnsPanel: React.FC<SelectedColumnsPanelProps> = ({
   } = useColumnChooser();
   
   const { 
+    dragState, 
     setDropTarget,
     setDropIndicator,
-    dragState
+    endDrag
   } = useCustomDrag();
   
   // Filter columns based on search term
@@ -66,39 +64,28 @@ const SelectedColumnsPanel: React.FC<SelectedColumnsPanelProps> = ({
     [filteredColumns, columnGroups, expandedSelectedGroups]
   );
   
-  // Calculate the drop index based on mouse Y position
-  const calculateDropIndex = useCallback((clientY: number): number => {
-    if (!listRef.current) return 0;
+  // Calculate drop index based on mouse position
+  const calculateMouseDropIndex = useCallback((clientOffset: {x: number, y: number} | null) => {
+    if (!containerRef.current || !clientOffset) return -1;
     
-    const listRect = listRef.current.getBoundingClientRect();
-    const relativeY = clientY - listRect.top;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const relativeY = clientOffset.y - containerRect.top;
     
-    // Use fixed item height for consistent calculation
-    const ITEM_HEIGHT = 36; // Must match the actual item height
+    // Try to find the virtualized list container
+    const listContainer = containerRef.current.querySelector('.virtualized-list-container');
+    if (!listContainer) return -1;
     
-    // Calculate raw index
-    let dropIndex = Math.floor(relativeY / ITEM_HEIGHT);
+    const listRect = (listContainer as HTMLElement).getBoundingClientRect();
+    const listRelativeY = clientOffset.y - listRect.top;
     
-    // If we're in the bottom half of an item, we should insert after it
-    const positionInItem = relativeY % ITEM_HEIGHT;
-    if (positionInItem > ITEM_HEIGHT / 2) {
-      dropIndex += 1;
-    }
-    
-    // Ensure index is within bounds
-    dropIndex = Math.max(0, Math.min(dropIndex, organizedColumns.length));
-    
-    console.log(`Calculate drop index: Y=${relativeY}, position in row=${positionInItem}, index=${dropIndex}`);
-    return dropIndex;
-  }, [organizedColumns.length]);
-  
-  // Update refs for the list container
-  useEffect(() => {
-    // Find the virtualized list container if it's not directly available
-    if (!listRef.current && containerRef.current) {
-      listRef.current = containerRef.current.querySelector('.virtualized-list-container') as HTMLDivElement;
-    }
-  }, []);
+    // Calculate which index the item should be dropped at
+    return calculateDropIndex(
+      listRelativeY,
+      organizedColumns,
+      dragState.dragItem?.id || '',
+      dragState.dragItem?.items || []
+    );
+  }, [organizedColumns, dragState.dragItem]);
   
   // Remove selected handler
   const handleRemoveSelected = useCallback(() => {
@@ -149,64 +136,57 @@ const SelectedColumnsPanel: React.FC<SelectedColumnsPanelProps> = ({
     moveDown(selectedItems);
   }, [selectedItems, moveDown]);
   
-  // Setup drop target for the panel
-  const [{ isOver, canDrop }, drop] = useDrop<DragItem, unknown, { isOver: boolean, canDrop: boolean }>({
+  // Setup react-dnd drop for the panel
+  const [{ isOver, canDrop }, dropRef] = useDrop<DragItem, unknown, { isOver: boolean, canDrop: boolean }>({
     accept: [DragItemTypes.COLUMN, DragItemTypes.GROUP],
     collect: (monitor) => ({
       isOver: monitor.isOver({ shallow: true }),
       canDrop: monitor.canDrop()
     }),
     hover: (item, monitor) => {
-      // Only process if we're the direct target (not a nested drop target)
-      if (!monitor.isOver({ shallow: true })) return;
-      
-      // Set the drop target in our custom state
-      setDropTarget('selected');
-      
-      // Calculate and set drop indicator position
-      const clientOffset = monitor.getClientOffset();
-      if (clientOffset) {
-        const dropIndex = calculateDropIndex(clientOffset.y);
+      if (isOver) {
+        console.log("Hovering over selected panel");
+        setDropTarget('selected');
+        
+        // Calculate and set drop indicator position
+        const dropIndex = calculateMouseDropIndex(monitor.getClientOffset());
         if (dropIndex !== dragState.dropIndicatorIndex) {
+          console.log("Setting drop indicator at index:", dropIndex);
           setDropIndicator(dropIndex);
         }
       }
     },
     drop: (item, monitor) => {
-      // Only process if we're the direct target (not a nested drop target)
-      if (!monitor.isOver({ shallow: true })) return;
+      console.log("Dropped on selected panel", item);
       
-      // Calculate final drop index
-      const clientOffset = monitor.getClientOffset();
-      const dropIndex = clientOffset ? calculateDropIndex(clientOffset.y) : 0;
-      
-      console.log(`Drop in selected panel, item: ${item.id}, source: ${item.sourcePanel}, index: ${dropIndex}`);
-      
-      // Handle drop from available panel
-      if (item.sourcePanel === 'available') {
-        const itemsToMove = item.multiple && item.items ? item.items : [item.id];
-        if (onColumnsReceived) {
-          onColumnsReceived(itemsToMove, dropIndex);
-        }
-      }
-      // Handle reordering within selected panel
-      else if (item.sourcePanel === 'selected') {
-        const itemsToReorder = item.multiple && item.items ? item.items : [item.id];
-        if (onColumnsReordered) {
-          onColumnsReordered(item.id, itemsToReorder, dropIndex);
-        }
+      // Prevent event bubbling if already handled
+      if (monitor.didDrop()) {
+        return;
       }
       
-      // Return information about where the drop occurred
-      return { droppedOn: 'selected', dropIndex };
+      const dropResult = { 
+        droppedOnPanel: true,
+        targetPanel: 'selected',
+        dropIndex: dragState.dropIndicatorIndex
+      };
+      
+      // Call the onDrop callback if provided
+      if (onDrop) {
+        onDrop(item, dropResult);
+      }
+      
+      // Reset drag state
+      endDrag();
+      
+      return dropResult;
     }
   });
   
-  // Connect the drop ref to the container ref
-  const connectRef = useCallback((el: HTMLDivElement | null) => {
+  // Combined ref
+  const combinedRef = (el: HTMLDivElement) => {
     containerRef.current = el;
-    drop(el);
-  }, [drop]);
+    dropRef(el);
+  };
   
   // Render item for virtualized list
   const renderItem = useCallback(({ item, index, style }: { 
@@ -243,7 +223,7 @@ const SelectedColumnsPanel: React.FC<SelectedColumnsPanelProps> = ({
   
   return (
     <div 
-      ref={connectRef}
+      ref={combinedRef}
       className={`selected-columns-panel ${isOver && canDrop ? 'drop-target-active' : ''} ${className}`}
     >
       <div className="panel-header">
@@ -261,18 +241,12 @@ const SelectedColumnsPanel: React.FC<SelectedColumnsPanelProps> = ({
         />
       </div>
       
-      <div 
-        className="panel-content"
-        ref={el => {
-          if (el) {
-            listRef.current = el.querySelector('.virtualized-list-container') as HTMLDivElement;
-          }
-        }}
-      >
+      <div className="panel-content">
         <VirtualizedList
           items={organizedColumns}
           renderItem={renderItem}
           dropIndicatorIndex={dragState.dropIndicatorIndex}
+          groupDropIndicatorIndices={dragState.groupDropIndicatorIndices}
           className="selected-columns-list"
         />
       </div>

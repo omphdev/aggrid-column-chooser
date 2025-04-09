@@ -1,9 +1,9 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { ColumnChooserProps } from '../../types';
+import { ColumnChooserProps, DragItemTypes, DragItem } from '../../types';
 import { ColumnChooserProvider, useColumnChooser } from './context/ColumnChooserContext';
-import { DragProvider } from './context/DragContext';
+import { DragProvider, useDrag } from './context/DragContext';
 import AvailableColumnsPanel from './panels/AvailableColumnsPanel';
 import SelectedColumnsPanel from './panels/SelectedColumnsPanel';
 import './styles.css';
@@ -17,33 +17,74 @@ const ColumnChooserInternal: React.FC = () => {
     reorderSelected
   } = useColumnChooser();
   
-  // Handle drop events
-  const handleAvailableToPanelDrop = useCallback((items: string[], targetIndex?: number) => {
-    console.log("Moving from available to selected:", items, "at index:", targetIndex);
-    addToSelected(items, targetIndex);
-  }, [addToSelected]);
+  const { 
+    dragState, 
+    endDrag 
+  } = useDrag();
   
-  const handleSelectedToPanelDrop = useCallback((items: string[]) => {
-    console.log("Moving from selected to available:", items);
-    removeFromSelected(items);
-  }, [removeFromSelected]);
+  // Function to handle drops between panels
+  const handlePanelDrop = useCallback((dragItem: DragItem, dropResult: any) => {
+    console.log("Panel Drop Handler:", dragItem, dropResult);
+    
+    if (!dropResult) return;
+    
+    // Handle column drops
+    if (dragItem.type === DragItemTypes.COLUMN) {
+      // From available to selected
+      if (dragItem.sourcePanel === 'available' && dropResult.targetPanel === 'selected') {
+        const itemsToMove = dragItem.multiple ? dragItem.items || [dragItem.id] : [dragItem.id];
+        addToSelected(itemsToMove, dropResult.dropIndex);
+      }
+      // From selected to available
+      else if (dragItem.sourcePanel === 'selected' && dropResult.targetPanel === 'available') {
+        const itemsToMove = dragItem.multiple ? dragItem.items || [dragItem.id] : [dragItem.id];
+        removeFromSelected(itemsToMove);
+      }
+      // Reorder within selected
+      else if (dragItem.sourcePanel === 'selected' && dropResult.targetPanel === 'selected') {
+        const itemsToMove = dragItem.multiple ? dragItem.items || [dragItem.id] : [dragItem.id];
+        reorderSelected(dragItem.id, dropResult.dropIndex, itemsToMove);
+      }
+    }
+    // Handle group drops
+    else if (dragItem.type === DragItemTypes.GROUP) {
+      // TODO: Implement group drag operations
+      console.log("Group drop not yet implemented:", dragItem);
+    }
+    
+    // Reset drag state
+    endDrag();
+  }, [addToSelected, removeFromSelected, reorderSelected, endDrag]);
   
-  const handleReorderDrop = useCallback((itemId: string, items: string[], targetIndex: number) => {
-    console.log("Reordering items:", items, "to index:", targetIndex);
-    reorderSelected(itemId, targetIndex, items);
-  }, [reorderSelected]);
+  // Monitor drag state and handle drops
+  useEffect(() => {
+    const handleDocumentDrop = () => {
+      // Reset drag state on any document drop
+      if (dragState.isDragging) {
+        console.log("Document drop detected, ending drag");
+        endDrag();
+      }
+    };
+    
+    document.addEventListener('drop', handleDocumentDrop);
+    document.addEventListener('dragend', handleDocumentDrop);
+    
+    return () => {
+      document.removeEventListener('drop', handleDocumentDrop);
+      document.removeEventListener('dragend', handleDocumentDrop);
+    };
+  }, [dragState.isDragging, endDrag]);
   
   return (
     <div className="column-chooser">
       <div className="column-chooser-panels">
         <AvailableColumnsPanel 
           className="column-chooser-panel"
-          onColumnsDrop={handleSelectedToPanelDrop}
+          onDrop={handlePanelDrop}
         />
         <SelectedColumnsPanel 
           className="column-chooser-panel"
-          onColumnsReceived={handleAvailableToPanelDrop}
-          onColumnsReordered={handleReorderDrop}
+          onDrop={handlePanelDrop}
         />
       </div>
     </div>
@@ -57,6 +98,12 @@ const ColumnChooser: React.FC<ColumnChooserProps> = ({
   onColumnChanged,
   onColumnGroupChanged
 }) => {
+  // Add debugging for props
+  console.log("ColumnChooser mounted with:", {
+    columnCount: columnDefs.length,
+    groupCount: columnGroups?.length || 0
+  });
+  
   return (
     <DndProvider backend={HTML5Backend}>
       <ColumnChooserProvider

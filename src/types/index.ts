@@ -52,12 +52,12 @@ export enum DragItemTypes {
 
 // Drag item data
 export interface DragItem {
-    type: DragItemTypes;
-    id: string;
-    sourcePanel: 'available' | 'selected'; // Ensure this is a literal type
-    sourceGroup?: string;
-    multiple?: boolean;
-    items?: string[];
+  type: DragItemTypes;
+  id: string;
+  sourcePanel: 'available' | 'selected'; // Ensure this is a literal type
+  sourceGroup?: string;
+  multiple?: boolean;
+  items?: string[];
 }
 
 // Search settings

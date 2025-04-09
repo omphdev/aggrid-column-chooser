@@ -125,21 +125,11 @@ const ColumnGroup: React.FC<ColumnGroupProps> = ({
   }, [dragRef, dropRef]);
   
   // Combined styles
-  // Combined styles
   const combinedStyles = useMemo(() => ({
     ...style,
     paddingLeft: `${level * 20}px`,
     opacity: isDragging ? 0.5 : 1,
-    cursor: 'grab',
-    display: 'flex',
-    alignItems: 'center',
-    height: 36,
-    padding: '8px 12px',
-    margin: 0,
-    boxSizing: 'border-box' as 'border-box',
-    backgroundColor: '#f5f5f5',
-    borderBottom: '1px solid #e0e0e0',
-    fontWeight: 500
+    cursor: 'grab'
   }), [style, level, isDragging]);
   
   // Combined class names

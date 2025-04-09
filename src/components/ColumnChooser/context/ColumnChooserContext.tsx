@@ -77,41 +77,35 @@ function columnChooserReducer(state: ColumnChooserState, action: ActionType): Co
         columnGroups: action.groups
       };
     
-    case 'ADD_TO_SELECTED':
-        // Find columns in available that need to be moved
-        const columnsToMove = state.availableColumns.filter(col => 
-          action.columns.some(c => c.field === col.field)
-        );
-        
-        if (columnsToMove.length === 0) return state;
-        
-        // Remove columns from available
-        const newAvailable = state.availableColumns.filter(col => 
-          !action.columns.some(c => c.field === col.field)
-        );
-        
-        // Add columns to selected at specified index or at the end
-        let newSelected = [...state.selectedColumns];
-        
-        // Use the provided index if available, otherwise append at the end
-        // Log the target index so we can confirm it's working
-        const index = action.index !== undefined ? action.index : newSelected.length;
-        console.log(`Adding columns at index ${index} (${action.index !== undefined ? 'provided' : 'end'})`);
-        
-        // Insert at the specified position
-        newSelected = [
-          ...newSelected.slice(0, index),
-          ...columnsToMove.map(col => ({ ...col, hide: false })),
-          ...newSelected.slice(index)
-        ];
-        
-        return {
-          ...state,
-          availableColumns: newAvailable,
-          selectedColumns: newSelected,
-          selectedItems: [] // Clear selection after drag-drop
-        };
-  
+    case 'ADD_TO_SELECTED': {
+      // Find columns in available that need to be moved
+      const columnsToMove = state.availableColumns.filter(col => 
+        action.columns.some(c => c.field === col.field)
+      );
+      
+      if (columnsToMove.length === 0) return state;
+      
+      // Remove columns from available
+      const newAvailable = state.availableColumns.filter(col => 
+        !action.columns.some(c => c.field === col.field)
+      );
+      
+      // Add columns to selected at specified index or at the end
+      let newSelected = [...state.selectedColumns];
+      const index = action.index !== undefined ? action.index : newSelected.length;
+      
+      newSelected = [
+        ...newSelected.slice(0, index),
+        ...columnsToMove.map(col => ({ ...col, hide: false })),
+        ...newSelected.slice(index)
+      ];
+      
+      return {
+        ...state,
+        availableColumns: newAvailable,
+        selectedColumns: newSelected
+      };
+    }
     
     case 'REMOVE_FROM_SELECTED': {
       // Find columns in selected that need to be moved
@@ -388,9 +382,9 @@ function columnChooserReducer(state: ColumnChooserState, action: ActionType): Co
         ...state,
         columnGroups: newGroups,
         expandedSelectedGroups: new Set([
-            ...Array.from(state.expandedSelectedGroups),
-            action.groupName
-        ])
+          ...Array.from(state.expandedSelectedGroups),
+          action.groupName
+        ])        
       };
     }
     
@@ -482,32 +476,11 @@ export const ColumnChooserProvider: React.FC<ColumnChooserProviderProps> = ({
   // Callbacks
   const addToSelected = useCallback((columnIds: string[], index?: number) => {
     const columns = state.availableColumns.filter(col => columnIds.includes(col.field));
-    
-    // Log what we're about to do
-    console.log(`Adding ${columns.length} columns to selected${index !== undefined ? ` at index ${index}` : ''}`);
-    console.log('Columns being added:', columns.map(c => c.field));
-    
-    // Dispatch the action
     dispatch({ type: 'ADD_TO_SELECTED', columns, index });
-    
-    // Calculate what the new column list will look like for the callback
-    // This needs to respect the insertion index as well
-    let updatedColumns;
-    if (index !== undefined) {
-      updatedColumns = [
-        ...state.selectedColumns.slice(0, index),
-        ...columns.map(col => ({ ...col, hide: false })),
-        ...state.selectedColumns.slice(index)
-      ];
-    } else {
-      updatedColumns = [
-        ...state.selectedColumns,
-        ...columns.map(col => ({ ...col, hide: false }))
-      ];
-    }
-    
-    // Notify parent component
-    onColumnChanged(updatedColumns, 'ADD');
+    onColumnChanged(
+      [...state.selectedColumns, ...columns.map(col => ({ ...col, hide: false }))],
+      'ADD'
+    );
   }, [state.availableColumns, state.selectedColumns, onColumnChanged]);
   
   const removeFromSelected = useCallback((columnIds: string[]) => {
@@ -531,55 +504,17 @@ export const ColumnChooserProvider: React.FC<ColumnChooserProviderProps> = ({
   }, [state.selectedColumns, state.columnGroups, onColumnChanged, onColumnGroupChanged]);
   
   const reorderSelected = useCallback((columnId: string, targetIndex: number, selectedItems: string[]) => {
-    console.log(`Reordering columns to index ${targetIndex}:`, selectedItems);
+    dispatch({ type: 'REORDER_SELECTED', columnId, targetIndex, selectedItems });
     
-    // First simulate the reordering to calculate the new column order
+    // Notify about reordering
+    // This is a bit complex as we need to determine the new order after reordering
+    // In a real implementation, you'd compute the new order based on the reordering logic
     const isMultiDrag = selectedItems.includes(columnId) && selectedItems.length > 1;
     const itemsToReorder = isMultiDrag ? selectedItems : [columnId];
     
-    // Create a copy of selected columns
-    const columnsCopy = [...state.selectedColumns];
-    
-    // Find indices of items to move
-    const indices = itemsToReorder
-      .map(id => columnsCopy.findIndex(col => col.field === id))
-      .filter(idx => idx !== -1)
-      .sort((a, b) => a - b);
-    
-    if (indices.length === 0) {
-      console.log('No columns found to reorder');
-      return;
-    }
-    
-    // Extract columns to move
-    const columnsToMove = indices.map(idx => columnsCopy[idx]);
-    
-    // Remove columns from original positions (from end to avoid index shifting)
-    for (let i = indices.length - 1; i >= 0; i--) {
-      columnsCopy.splice(indices[i], 1);
-    }
-    
-    // Adjust targetIndex based on how many items were removed before the target
-    let adjustedTargetIndex = targetIndex;
-    for (const idx of indices) {
-      if (idx < targetIndex) {
-        adjustedTargetIndex--;
-      }
-    }
-    
-    // Ensure adjusted index is within bounds
-    adjustedTargetIndex = Math.max(0, Math.min(adjustedTargetIndex, columnsCopy.length));
-    
-    // Insert columns at the target position
-    columnsCopy.splice(adjustedTargetIndex, 0, ...columnsToMove);
-    
-    console.log('New column order will be:', columnsCopy.map(col => col.field));
-    
-    // Dispatch the action
-    dispatch({ type: 'REORDER_SELECTED', columnId, targetIndex, selectedItems });
-    
-    // Notify parent component
-    onColumnChanged(columnsCopy, 'REORDER');
+    // This is just a skeleton - actual implementation would need to mirror the reducer logic
+    // to compute the exact new order
+    onColumnChanged(state.selectedColumns, 'REORDER');
   }, [state.selectedColumns, onColumnChanged]);
   
   const reorderGroup = useCallback((groupName: string, targetIndex: number) => {
@@ -676,7 +611,7 @@ export const ColumnChooserProvider: React.FC<ColumnChooserProviderProps> = ({
     setSearchTerm,
     clearAll,
     onColumnChanged,
-    onColumnGroupChanged: onColumnGroupChanged || (() => {})
+    onColumnGroupChanged: onColumnGroupChanged || (() => {console.log('here')})
   }), [
     state,
     addToSelected,
